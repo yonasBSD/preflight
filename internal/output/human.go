@@ -46,6 +46,11 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"STORAGE":   "📦",
 		"SEARCH":    "🔎",
 		"COMM":      "💬",
+		"SOCIAL":    "📱",
+		"ICONS":     "🎨",
+		"FILES":     "📄",
+		"SSL":       "🔐",
+		"LICENSE":   "📜",
 	}
 
 	// Map check IDs to display categories
@@ -71,7 +76,9 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"sidekiq":         "JOBS",
 		"rabbitmq":        "JOBS",
 		"seoMeta":         "SEO",
+		"ogTwitter":       "SOCIAL",
 		"securityHeaders": "SECURITY",
+		"ssl":             "SSL",
 		"secrets":         "SECRETS",
 		"openai":          "AI",
 		"anthropic":       "AI",
@@ -94,6 +101,12 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"twilio":          "COMM",
 		"intercom":        "COMM",
 		"crisp":           "COMM",
+		"favicon":         "ICONS",
+		"robotsTxt":       "FILES",
+		"sitemap":         "FILES",
+		"llmsTxt":         "FILES",
+		"adsTxt":          "FILES",
+		"license":         "LICENSE",
 	}
 
 	// Print results

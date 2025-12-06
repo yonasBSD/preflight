@@ -41,8 +41,16 @@ preflight scan --ci --format json
 | **ENV Parity** | Compares `.env` and `.env.example` for missing variables |
 | **Health Endpoint** | Verifies `/health` is reachable on staging/production |
 | **SEO Metadata** | Checks for title, description, and Open Graph tags |
-| **Security Headers** | Validates HSTS, CSP, and other security headers |
-| **Secret Scanning** | Finds leaked API keys and credentials |
+| **OG & Twitter Cards** | Validates og:image, twitter:card and social sharing metadata |
+| **Security Headers** | Validates HSTS, CSP, X-Content-Type-Options, Referrer-Policy |
+| **SSL Certificate** | Checks SSL validity and warns before expiration |
+| **Secret Scanning** | Finds leaked API keys and credentials in code |
+| **Favicon & Icons** | Checks for favicon, apple-touch-icon, and web manifest |
+| **robots.txt** | Verifies robots.txt exists for search engines |
+| **sitemap.xml** | Checks for sitemap presence or generator |
+| **llms.txt** | Checks for LLM crawler guidance file |
+| **ads.txt** | Validates ads.txt for ad-supported sites (optional) |
+| **LICENSE** | Checks for license file and detects license type |
 
 ## Supported Services (45)
 

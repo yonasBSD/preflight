@@ -34,6 +34,7 @@ type ChecksConfig struct {
 	Plausible      *PlausibleConfig      `yaml:"plausible,omitempty"`
 	Security       *SecurityConfig       `yaml:"security,omitempty"`
 	Secrets        *SecretsConfig        `yaml:"secrets,omitempty"`
+	AdsTxt         *AdsTxtConfig         `yaml:"adsTxt,omitempty"`
 }
 
 type EnvParityConfig struct {
@@ -70,6 +71,10 @@ type SecurityConfig struct {
 }
 
 type SecretsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type AdsTxtConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
