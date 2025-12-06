@@ -117,14 +117,34 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 		enabledChecks = append(enabledChecks, checks.StripeWebhookCheck{})
 	}
 
-	// Sentry Check
-	if cfg.Checks.Sentry != nil && cfg.Checks.Sentry.Enabled {
+	// Sentry Check - runs if service is declared
+	if cfg.Services["sentry"].Declared {
 		enabledChecks = append(enabledChecks, checks.SentryCheck{})
 	}
 
-	// Plausible Check
-	if cfg.Checks.Plausible != nil && cfg.Checks.Plausible.Enabled {
+	// Plausible Check - runs if service is declared
+	if cfg.Services["plausible"].Declared {
 		enabledChecks = append(enabledChecks, checks.PlausibleCheck{})
+	}
+
+	// Fathom Check - runs if service is declared
+	if cfg.Services["fathom"].Declared {
+		enabledChecks = append(enabledChecks, checks.FathomCheck{})
+	}
+
+	// Google Analytics Check - runs if service is declared
+	if cfg.Services["google_analytics"].Declared {
+		enabledChecks = append(enabledChecks, checks.GoogleAnalyticsCheck{})
+	}
+
+	// Redis Check - runs if service is declared
+	if cfg.Services["redis"].Declared {
+		enabledChecks = append(enabledChecks, checks.RedisCheck{})
+	}
+
+	// Sidekiq Check - runs if service is declared
+	if cfg.Services["sidekiq"].Declared {
+		enabledChecks = append(enabledChecks, checks.SidekiqCheck{})
 	}
 
 	// SEO Meta Check

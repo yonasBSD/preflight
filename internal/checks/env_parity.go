@@ -2,6 +2,7 @@ package checks
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,32 +33,30 @@ func (c EnvParityCheck) Run(ctx Context) (CheckResult, error) {
 	envPath := filepath.Join(ctx.RootDir, cfg.EnvFile)
 	examplePath := filepath.Join(ctx.RootDir, cfg.ExampleFile)
 
-	// Parse both files
-	envKeys, err := parseEnvFile(envPath)
-	if err != nil {
+	// Check if .env.example exists first
+	exampleKeys, exampleErr := parseEnvFile(examplePath)
+	if exampleErr != nil {
+		// No .env.example - that's fine, skip this check
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
-			Severity: SeverityWarn,
-			Passed:   false,
-			Message:  "Could not read " + cfg.EnvFile,
-			Suggestions: []string{
-				"Create a " + cfg.EnvFile + " file",
-			},
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "No " + cfg.ExampleFile + " found (skipped)",
 		}, nil
 	}
 
-	exampleKeys, err := parseEnvFile(examplePath)
-	if err != nil {
+	// .env.example exists - now check if .env exists
+	envKeys, envErr := parseEnvFile(envPath)
+	if envErr != nil {
+		// .env.example exists but .env doesn't - this is expected for repos
+		// Just note that .env.example documents the required vars
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
-			Severity: SeverityWarn,
-			Passed:   false,
-			Message:  "Could not read " + cfg.ExampleFile,
-			Suggestions: []string{
-				"Create a " + cfg.ExampleFile + " file to document required environment variables",
-			},
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  cfg.ExampleFile + " documents " + fmt.Sprintf("%d", len(exampleKeys)) + " required variables",
 		}, nil
 	}
 

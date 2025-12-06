@@ -40,12 +40,43 @@ preflight scan --ci --format json
 |-------|-------------|
 | **ENV Parity** | Compares `.env` and `.env.example` for missing variables |
 | **Health Endpoint** | Verifies `/health` is reachable on staging/production |
-| **Stripe Webhook** | Confirms webhook endpoint is accessible |
-| **Sentry Init** | Detects Sentry initialization in codebase |
-| **Plausible Analytics** | Finds Plausible script tag in templates |
 | **SEO Metadata** | Checks for title, description, and Open Graph tags |
 | **Security Headers** | Validates HSTS, CSP, and other security headers |
 | **Secret Scanning** | Finds leaked API keys and credentials |
+
+## Supported Services (37)
+
+Preflight auto-detects and validates configuration for these services:
+
+**Payments**
+- Stripe, PayPal, Braintree, Paddle, LemonSqueezy
+
+**Error Tracking & Monitoring**
+- Sentry, Bugsnag, Rollbar, Honeybadger, Datadog, New Relic, LogRocket
+
+**Email**
+- Postmark, SendGrid, Mailgun, AWS SES, Resend, Mailchimp, ConvertKit
+
+**Analytics**
+- Plausible, Fathom, Google Analytics, Mixpanel, Amplitude, Segment, Hotjar
+
+**Auth**
+- Auth0, Clerk, Firebase, Supabase
+
+**Communication**
+- Twilio, Slack, Discord, Intercom, Crisp
+
+**Infrastructure**
+- Redis, Sidekiq, RabbitMQ, Elasticsearch
+
+**Storage & CDN**
+- AWS S3, Cloudinary, Cloudflare
+
+**Search**
+- Algolia
+
+**AI**
+- OpenAI, Anthropic Claude
 
 ## Configuration
 
@@ -98,6 +129,9 @@ checks:
 - Next.js
 - Node.js (Express, etc.)
 - Laravel
+- Go
+- Python / Django
+- Rust
 - Static sites
 
 ## CI Integration

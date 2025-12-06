@@ -71,11 +71,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Ask about additional services
-	additionalServices := []string{"stripe", "sentry", "postmark", "plausible"}
-	for _, svc := range additionalServices {
+	// Ask about additional services not detected
+	fmt.Println()
+	fmt.Println("Any other services? (y/n for each):")
+	for _, svc := range config.AllServices {
 		if _, exists := confirmedServices[svc]; !exists {
-			if promptYesNo(reader, fmt.Sprintf("  Use %s?", svc), false) {
+			if promptYesNo(reader, fmt.Sprintf("  Use %s?", formatServiceName(svc)), false) {
 				confirmedServices[svc] = config.ServiceConfig{Declared: true}
 			}
 		}
@@ -219,4 +220,77 @@ func writeConfig(path string, cfg *config.PreflightConfig) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+func formatServiceName(svc string) string {
+	names := map[string]string{
+		// Payments
+		"stripe":       "Stripe",
+		"paypal":       "PayPal",
+		"braintree":    "Braintree",
+		"paddle":       "Paddle",
+		"lemonsqueezy": "LemonSqueezy",
+
+		// Error Tracking & Monitoring
+		"sentry":      "Sentry",
+		"bugsnag":     "Bugsnag",
+		"rollbar":     "Rollbar",
+		"honeybadger": "Honeybadger",
+		"datadog":     "Datadog",
+		"newrelic":    "New Relic",
+		"logrocket":   "LogRocket",
+
+		// Email
+		"postmark":   "Postmark",
+		"sendgrid":   "SendGrid",
+		"mailgun":    "Mailgun",
+		"aws_ses":    "AWS SES",
+		"resend":     "Resend",
+		"mailchimp":  "Mailchimp",
+		"convertkit": "ConvertKit",
+
+		// Analytics
+		"plausible":        "Plausible Analytics",
+		"fathom":           "Fathom Analytics",
+		"google_analytics": "Google Analytics",
+		"mixpanel":         "Mixpanel",
+		"amplitude":        "Amplitude",
+		"segment":          "Segment",
+		"hotjar":           "Hotjar",
+
+		// Auth
+		"auth0":    "Auth0",
+		"clerk":    "Clerk",
+		"firebase": "Firebase",
+		"supabase": "Supabase",
+
+		// Communication
+		"twilio":   "Twilio",
+		"slack":    "Slack",
+		"discord":  "Discord",
+		"intercom": "Intercom",
+		"crisp":    "Crisp",
+
+		// Infrastructure
+		"redis":         "Redis",
+		"sidekiq":       "Sidekiq",
+		"rabbitmq":      "RabbitMQ",
+		"elasticsearch": "Elasticsearch",
+
+		// Storage & CDN
+		"aws_s3":     "AWS S3",
+		"cloudinary": "Cloudinary",
+		"cloudflare": "Cloudflare",
+
+		// Search
+		"algolia": "Algolia",
+
+		// AI
+		"openai":    "OpenAI",
+		"anthropic": "Anthropic Claude",
+	}
+	if name, ok := names[svc]; ok {
+		return name
+	}
+	return svc
 }
