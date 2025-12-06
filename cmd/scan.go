@@ -152,14 +152,36 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 		enabledChecks = append(enabledChecks, checks.SEOMetadataCheck{})
 	}
 
+	// OG & Twitter Cards Check - runs if SEO Meta is configured
+	if cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled {
+		enabledChecks = append(enabledChecks, checks.OGTwitterCheck{})
+	}
+
 	// Security Headers Check
 	if cfg.Checks.Security != nil && cfg.Checks.Security.Enabled {
 		enabledChecks = append(enabledChecks, checks.SecurityHeadersCheck{})
 	}
 
+	// SSL Certificate Check - runs if production URL is set
+	if cfg.URLs.Production != "" {
+		enabledChecks = append(enabledChecks, checks.SSLCheck{})
+	}
+
 	// Secrets Check
 	if cfg.Checks.Secrets != nil && cfg.Checks.Secrets.Enabled {
 		enabledChecks = append(enabledChecks, checks.SecretScanCheck{})
+	}
+
+	// Always run these checks - they're universal best practices
+	enabledChecks = append(enabledChecks, checks.FaviconCheck{})
+	enabledChecks = append(enabledChecks, checks.RobotsTxtCheck{})
+	enabledChecks = append(enabledChecks, checks.SitemapCheck{})
+	enabledChecks = append(enabledChecks, checks.LLMsTxtCheck{})
+	enabledChecks = append(enabledChecks, checks.LicenseCheck{})
+
+	// Ads.txt Check - only if explicitly enabled
+	if cfg.Checks.AdsTxt != nil && cfg.Checks.AdsTxt.Enabled {
+		enabledChecks = append(enabledChecks, checks.AdsTxtCheck{})
 	}
 
 	return enabledChecks
