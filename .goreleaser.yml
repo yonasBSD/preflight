@@ -30,7 +30,7 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
-homebrew:
+brews:
   - name: preflight
     repository:
       owner: phillips-jon
