@@ -177,7 +177,11 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 	enabledChecks = append(enabledChecks, checks.RobotsTxtCheck{})
 	enabledChecks = append(enabledChecks, checks.SitemapCheck{})
 	enabledChecks = append(enabledChecks, checks.LLMsTxtCheck{})
-	enabledChecks = append(enabledChecks, checks.LicenseCheck{})
+
+	// License Check - only if enabled (opt-in for open source projects)
+	if cfg.Checks.License != nil && cfg.Checks.License.Enabled {
+		enabledChecks = append(enabledChecks, checks.LicenseCheck{})
+	}
 
 	// Ads.txt Check - only if explicitly enabled
 	if cfg.Checks.AdsTxt != nil && cfg.Checks.AdsTxt.Enabled {

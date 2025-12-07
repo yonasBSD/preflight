@@ -82,6 +82,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Ask about license file
+	fmt.Println()
+	hasLicense := promptYesNo(reader, "Does this project have a LICENSE file (e.g., MIT, Apache, GPL)?", false)
+
 	// Build config
 	cfg := config.PreflightConfig{
 		ProjectName: projectName,
@@ -91,7 +95,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			Production: productionURL,
 		},
 		Services: confirmedServices,
-		Checks:   buildDefaultChecks(cwd, stack, confirmedServices, productionURL),
+		Checks:   buildDefaultChecks(cwd, stack, confirmedServices, productionURL, hasLicense),
 	}
 
 	// Write config file
@@ -150,7 +154,7 @@ func getDefaultProjectName(cwd string) string {
 	return "my-project"
 }
 
-func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceConfig, productionURL string) config.ChecksConfig {
+func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceConfig, productionURL string, hasLicense bool) config.ChecksConfig {
 	checks := config.ChecksConfig{
 		EnvParity: &config.EnvParityConfig{
 			Enabled:     true,
@@ -172,6 +176,9 @@ func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceCon
 		},
 		Secrets: &config.SecretsConfig{
 			Enabled: true,
+		},
+		License: &config.LicenseConfig{
+			Enabled: hasLicense,
 		},
 	}
 

@@ -125,7 +125,82 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
-	// Check for sitemap generation in package.json scripts or next-sitemap
+	// Check for dynamic sitemap generation across various frameworks
+	dynamicSitemapPaths := []string{
+		// Rails
+		"app/controllers/sitemap_controller.rb",
+		"app/controllers/sitemaps_controller.rb",
+		// Laravel
+		"app/Http/Controllers/SitemapController.php",
+		// Django
+		"sitemaps.py",
+		// Phoenix/Elixir
+		"lib/*/controllers/sitemap_controller.ex",
+		// Go
+		"handlers/sitemap.go",
+		"internal/handlers/sitemap.go",
+		"pkg/handlers/sitemap.go",
+		// ASP.NET
+		"Controllers/SitemapController.cs",
+	}
+
+	for _, path := range dynamicSitemapPaths {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		if _, err := os.Stat(fullPath); err == nil {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "sitemap.xml generated via " + path,
+			}, nil
+		}
+	}
+
+	// Check for sitemap view directories
+	sitemapViewDirs := []string{
+		// Rails
+		"app/views/sitemap",
+		"app/views/sitemaps",
+		// Laravel
+		"resources/views/sitemap",
+	}
+
+	for _, path := range sitemapViewDirs {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		if info, err := os.Stat(fullPath); err == nil && info.IsDir() {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "sitemap.xml generated via view templates",
+			}, nil
+		}
+	}
+
+	// Check for sitemap in Django urls.py
+	djangoUrlsPaths := []string{
+		"urls.py",
+		"config/urls.py",
+		"project/urls.py",
+	}
+	for _, path := range djangoUrlsPaths {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		if content, err := os.ReadFile(fullPath); err == nil {
+			if strings.Contains(string(content), "sitemap") {
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "sitemap.xml configured in Django urls",
+				}, nil
+			}
+		}
+	}
+
+	// Check for sitemap generation in package.json (Node/Next.js)
 	pkgPath := filepath.Join(ctx.RootDir, "package.json")
 	if content, err := os.ReadFile(pkgPath); err == nil {
 		if strings.Contains(string(content), "next-sitemap") ||
@@ -135,7 +210,53 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 				Title:    c.Title(),
 				Severity: SeverityInfo,
 				Passed:   true,
-				Message:  "Sitemap generation configured via package",
+				Message:  "Sitemap generation configured via npm package",
+			}, nil
+		}
+	}
+
+	// Check for sitemap in Gemfile (Rails)
+	gemfilePath := filepath.Join(ctx.RootDir, "Gemfile")
+	if content, err := os.ReadFile(gemfilePath); err == nil {
+		if strings.Contains(string(content), "sitemap_generator") ||
+			strings.Contains(string(content), "sitemap") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "Sitemap generation configured via Ruby gem",
+			}, nil
+		}
+	}
+
+	// Check for sitemap in composer.json (Laravel/PHP)
+	composerPath := filepath.Join(ctx.RootDir, "composer.json")
+	if content, err := os.ReadFile(composerPath); err == nil {
+		if strings.Contains(string(content), "spatie/laravel-sitemap") ||
+			strings.Contains(string(content), "sitemap") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "Sitemap generation configured via Composer package",
+			}, nil
+		}
+	}
+
+	// Check for sitemap in requirements.txt (Python/Flask/Django)
+	requirementsPath := filepath.Join(ctx.RootDir, "requirements.txt")
+	if content, err := os.ReadFile(requirementsPath); err == nil {
+		if strings.Contains(string(content), "django-sitemap") ||
+			strings.Contains(string(content), "flask-sitemap") ||
+			strings.Contains(string(content), "sitemap") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "Sitemap generation configured via Python package",
 			}, nil
 		}
 	}
