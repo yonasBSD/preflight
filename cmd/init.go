@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/phillips-jon/preflight/internal/config"
@@ -38,7 +40,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Detect stack
 	fmt.Print("Detecting stack... ")
 	stack := config.DetectStack(cwd)
-	fmt.Printf("detected: %s\n", stack)
+	stackDisplay := formatStackName(stack)
+	if version := detectStackVersion(cwd, stack); version != "" {
+		stackDisplay += " " + version
+	}
+	fmt.Printf("detected: %s\n", stackDisplay)
 
 	// Detect services
 	fmt.Println("Detecting services...")
@@ -331,4 +337,170 @@ func formatServiceName(svc string) string {
 		return name
 	}
 	return svc
+}
+
+func formatStackName(stack string) string {
+	names := map[string]string{
+		// Frameworks
+		"rails":   "Ruby on Rails",
+		"next":    "Next.js",
+		"node":    "Node.js",
+		"laravel": "Laravel",
+		"django":  "Django",
+		"python":  "Python",
+		"go":      "Go",
+		"rust":    "Rust",
+		"static":  "Static Site",
+
+		// Traditional CMS
+		"wordpress": "WordPress",
+		"craft":     "Craft CMS",
+		"drupal":    "Drupal",
+		"ghost":     "Ghost",
+
+		// Static Site Generators
+		"hugo":     "Hugo",
+		"jekyll":   "Jekyll",
+		"gatsby":   "Gatsby",
+		"eleventy": "Eleventy (11ty)",
+		"astro":    "Astro",
+
+		// Headless CMS
+		"strapi":     "Strapi",
+		"sanity":     "Sanity",
+		"contentful": "Contentful",
+		"prismic":    "Prismic",
+	}
+	if name, ok := names[stack]; ok {
+		return name
+	}
+	return stack
+}
+
+func detectStackVersion(cwd, stack string) string {
+	switch stack {
+	case "craft":
+		return detectComposerVersion(cwd, "craftcms/cms")
+	case "laravel":
+		return detectComposerVersion(cwd, "laravel/framework")
+	case "drupal":
+		return detectComposerVersion(cwd, "drupal/core")
+	case "wordpress":
+		// Check wp-includes/version.php for WordPress version
+		versionFile := cwd + "/wp-includes/version.php"
+		if content, err := os.ReadFile(versionFile); err == nil {
+			re := regexp.MustCompile(`\$wp_version\s*=\s*'([^']+)'`)
+			if matches := re.FindStringSubmatch(string(content)); len(matches) > 1 {
+				return matches[1]
+			}
+		}
+	case "next":
+		return detectNpmVersion(cwd, "next")
+	case "gatsby":
+		return detectNpmVersion(cwd, "gatsby")
+	case "astro":
+		return detectNpmVersion(cwd, "astro")
+	case "eleventy":
+		return detectNpmVersion(cwd, "@11ty/eleventy")
+	case "hugo":
+		// Check hugo.toml or config.toml for version info (usually not present)
+		// Hugo version is CLI-based, not project-based
+		return ""
+	case "jekyll":
+		return detectGemVersion(cwd, "jekyll")
+	case "rails":
+		return detectGemVersion(cwd, "rails")
+	case "ghost":
+		return detectNpmVersion(cwd, "ghost")
+	case "strapi":
+		return detectNpmVersion(cwd, "@strapi/strapi")
+	case "sanity":
+		return detectNpmVersion(cwd, "sanity")
+	}
+	return ""
+}
+
+func detectComposerVersion(cwd, pkg string) string {
+	composerLock := cwd + "/composer.lock"
+	if content, err := os.ReadFile(composerLock); err == nil {
+		var lock struct {
+			Packages []struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+			} `json:"packages"`
+		}
+		if json.Unmarshal(content, &lock) == nil {
+			for _, p := range lock.Packages {
+				if p.Name == pkg {
+					return strings.TrimPrefix(p.Version, "v")
+				}
+			}
+		}
+	}
+	// Fallback to composer.json
+	composerJSON := cwd + "/composer.json"
+	if content, err := os.ReadFile(composerJSON); err == nil {
+		var composer struct {
+			Require map[string]string `json:"require"`
+		}
+		if json.Unmarshal(content, &composer) == nil {
+			if version, ok := composer.Require[pkg]; ok {
+				return strings.TrimPrefix(version, "^")
+			}
+		}
+	}
+	return ""
+}
+
+func detectNpmVersion(cwd, pkg string) string {
+	packageLock := cwd + "/package-lock.json"
+	if content, err := os.ReadFile(packageLock); err == nil {
+		var lock struct {
+			Packages map[string]struct {
+				Version string `json:"version"`
+			} `json:"packages"`
+			Dependencies map[string]struct {
+				Version string `json:"version"`
+			} `json:"dependencies"`
+		}
+		if json.Unmarshal(content, &lock) == nil {
+			// Check packages (npm v7+)
+			if p, ok := lock.Packages["node_modules/"+pkg]; ok {
+				return p.Version
+			}
+			// Check dependencies (npm v6)
+			if d, ok := lock.Dependencies[pkg]; ok {
+				return d.Version
+			}
+		}
+	}
+	// Fallback to package.json
+	packageJSON := cwd + "/package.json"
+	if content, err := os.ReadFile(packageJSON); err == nil {
+		var pkg2 struct {
+			Dependencies    map[string]string `json:"dependencies"`
+			DevDependencies map[string]string `json:"devDependencies"`
+		}
+		if json.Unmarshal(content, &pkg2) == nil {
+			if version, ok := pkg2.Dependencies[pkg]; ok {
+				return strings.TrimPrefix(version, "^")
+			}
+			if version, ok := pkg2.DevDependencies[pkg]; ok {
+				return strings.TrimPrefix(version, "^")
+			}
+		}
+	}
+	return ""
+}
+
+func detectGemVersion(cwd, gem string) string {
+	gemfileLock := cwd + "/Gemfile.lock"
+	if content, err := os.ReadFile(gemfileLock); err == nil {
+		// Parse Gemfile.lock for gem version
+		re := regexp.MustCompile(`(?m)^\s+` + regexp.QuoteMeta(gem) + ` \(([^)]+)\)`)
+		if matches := re.FindStringSubmatch(string(content)); len(matches) > 1 {
+			return matches[1]
+		}
+	}
+	return ""
 }
