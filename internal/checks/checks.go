@@ -52,6 +52,7 @@ var Registry = []Check{
 	SecurityHeadersCheck{},
 	SSLCheck{},
 	SecretScanCheck{},
+	VulnerabilityCheck{},
 	FaviconCheck{},
 	RobotsTxtCheck{},
 	SitemapCheck{},
