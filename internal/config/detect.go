@@ -223,6 +223,9 @@ var AllServices = []string{
 	"grok",
 	"perplexity",
 	"together_ai",
+
+	// SEO
+	"indexnow",
 }
 
 // DetectServices scans the project for known service integrations
@@ -444,6 +447,11 @@ func detectServicesFromContent(content string, services map[string]bool, lang st
 	if strings.Contains(content, "together") && strings.Contains(content, "ai") {
 		services["together_ai"] = true
 	}
+
+	// SEO
+	if strings.Contains(content, "indexnow") {
+		services["indexnow"] = true
+	}
 }
 
 func detectServicesFromEnv(rootDir string, services map[string]bool) map[string]bool {
@@ -524,6 +532,9 @@ func detectServicesFromEnv(rootDir string, services map[string]bool) map[string]
 		"grok":        {"GROK_", "XAI_"},
 		"perplexity":  {"PERPLEXITY_", "PPLX_"},
 		"together_ai": {"TOGETHER_", "TOGETHER_AI_"},
+
+		// SEO
+		"indexnow": {"INDEXNOW_", "INDEX_NOW_"},
 	}
 
 	for _, envFile := range envFiles {

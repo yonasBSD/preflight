@@ -105,9 +105,22 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Ask about ads
 	hasAds := promptYesNo(reader, "Does this site serve ads or advertisements?", false)
 
-	// Ask about IndexNow
+	// Handle IndexNow - check if detected or ask
 	var indexNowKey string
-	if promptYesNo(reader, "Do you use IndexNow for faster search engine indexing?", false) {
+	indexNowDetected := confirmedServices["indexnow"].Declared
+
+	if indexNowDetected {
+		// Try to extract key from .env files
+		indexNowKey = detectIndexNowKey(cwd)
+		if indexNowKey != "" {
+			fmt.Printf("IndexNow detected with key: %s\n", indexNowKey)
+		} else {
+			fmt.Println("IndexNow detected but no key found in .env files")
+			indexNowKey = promptOptional(reader, "  Paste your IndexNow key")
+		}
+		// Remove from confirmedServices since we handle it separately
+		delete(confirmedServices, "indexnow")
+	} else if promptYesNo(reader, "Do you use IndexNow for faster search engine indexing?", false) {
 		fmt.Println("  1. Paste existing key")
 		fmt.Println("  2. Generate new key")
 		choice := promptWithDefault(reader, "  Choose", "2")
@@ -434,6 +447,9 @@ func formatServiceName(svc string) string {
 		"grok":        "Grok (X/Twitter)",
 		"perplexity":  "Perplexity",
 		"together_ai": "Together AI",
+
+		// SEO
+		"indexnow": "IndexNow",
 	}
 	if name, ok := names[svc]; ok {
 		return name
@@ -612,6 +628,39 @@ func generateIndexNowKey() string {
 	bytes := make([]byte, 16)
 	rand.Read(bytes)
 	return hex.EncodeToString(bytes)
+}
+
+func detectIndexNowKey(cwd string) string {
+	envFiles := []string{".env", ".env.example", ".env.local", ".env.development"}
+	keyPatterns := []string{"INDEXNOW_API_KEY=", "INDEXNOW_KEY=", "INDEX_NOW_KEY="}
+
+	for _, envFile := range envFiles {
+		path := filepath.Join(cwd, envFile)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			for _, pattern := range keyPatterns {
+				if strings.HasPrefix(strings.ToUpper(line), pattern) {
+					// Extract the value after the =
+					parts := strings.SplitN(line, "=", 2)
+					if len(parts) == 2 {
+						key := strings.TrimSpace(parts[1])
+						// Remove quotes if present
+						key = strings.Trim(key, "\"'")
+						if key != "" && key != "your_key_here" {
+							return key
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func detectWebRoot(cwd, stack string) string {
