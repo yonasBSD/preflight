@@ -66,16 +66,24 @@ func (c FaviconCheck) Run(ctx Context) (CheckResult, error) {
 		missing = append(missing, "favicon")
 	}
 
-	// Check for Apple Touch Icon
+	// Check for Apple Touch Icon (supports multiple formats)
+	appleIconFiles := []string{
+		"apple-touch-icon.png", "apple-touch-icon.webp", "apple-touch-icon.jpg", "apple-touch-icon.svg",
+		"apple-icon.png", "apple-icon.webp", "apple-icon.jpg", "apple-icon.svg",
+	}
 	var appleTouchPaths []string
 	for _, root := range webRoots {
-		if root == "" {
-			appleTouchPaths = append(appleTouchPaths, "apple-touch-icon.png", "apple-icon.png")
-		} else {
-			appleTouchPaths = append(appleTouchPaths,
-				root+"/apple-touch-icon.png",
-				root+"/apple-icon.png",
-			)
+		for _, file := range appleIconFiles {
+			if root == "" {
+				appleTouchPaths = append(appleTouchPaths, file)
+			} else {
+				appleTouchPaths = append(appleTouchPaths, root+"/"+file)
+				// Also check assets subdirectories
+				appleTouchPaths = append(appleTouchPaths, root+"/assets/"+file)
+				appleTouchPaths = append(appleTouchPaths, root+"/assets/images/"+file)
+				appleTouchPaths = append(appleTouchPaths, root+"/images/"+file)
+				appleTouchPaths = append(appleTouchPaths, root+"/img/"+file)
+			}
 		}
 	}
 
