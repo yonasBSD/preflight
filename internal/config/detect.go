@@ -564,77 +564,78 @@ func detectServicesFromEnv(rootDir string, services map[string]bool) map[string]
 
 func detectAnalyticsScripts(rootDir string, services map[string]bool) {
 	// Patterns for detecting services in code/template content
+	// These are intentionally specific to avoid false positives - require URLs, SDK imports, or API calls
 	patterns := map[string]*regexp.Regexp{
-		// Analytics
-		"plausible":        regexp.MustCompile(`(?i)plausible\.io|plausible`),
-		"fathom":           regexp.MustCompile(`(?i)usefathom\.com|cdn\.usefathom\.com|fathom`),
-		"fullres":          regexp.MustCompile(`(?i)fullres`),
-		"datafast":         regexp.MustCompile(`(?i)datafa\.st|datafast`),
-		"google_analytics": regexp.MustCompile(`(?i)googletagmanager\.com|google-analytics\.com|gtag\(|ga\(|monsterinsights`),
-		"hotjar":           regexp.MustCompile(`(?i)hotjar\.com|hotjar`),
-		"mixpanel":         regexp.MustCompile(`(?i)mixpanel`),
-		"segment":          regexp.MustCompile(`(?i)segment\.com|analytics\.js`),
-		"amplitude":        regexp.MustCompile(`(?i)amplitude\.com|amplitude`),
+		// Analytics - look for script URLs or specific SDK patterns
+		"plausible":        regexp.MustCompile(`(?i)plausible\.io/js/|plausible\.io/api`),
+		"fathom":           regexp.MustCompile(`(?i)cdn\.usefathom\.com|script\.src.*fathom`),
+		"fullres":          regexp.MustCompile(`(?i)window\.fullres|var fullres|fullres\.events`),
+		"datafast":         regexp.MustCompile(`(?i)datafa\.st/js/`),
+		"google_analytics": regexp.MustCompile(`(?i)googletagmanager\.com|google-analytics\.com/|gtag\(['"]|monsterinsights`),
+		"hotjar":           regexp.MustCompile(`(?i)static\.hotjar\.com|hotjar\.com/`),
+		"mixpanel":         regexp.MustCompile(`(?i)cdn\.mxpnl\.com|mixpanel\.com/|mixpanel\.init`),
+		"segment":          regexp.MustCompile(`(?i)cdn\.segment\.com|analytics\.load\(`),
+		"amplitude":        regexp.MustCompile(`(?i)cdn\.amplitude\.com|amplitude\.getInstance`),
 
-		// Communication
-		"intercom": regexp.MustCompile(`(?i)intercom`),
-		"crisp":    regexp.MustCompile(`(?i)crisp\.chat|crisp`),
+		// Communication - require specific URLs or SDK
+		"intercom": regexp.MustCompile(`(?i)widget\.intercom\.io|Intercom\(['"]`),
+		"crisp":    regexp.MustCompile(`(?i)client\.crisp\.chat|CRISP_WEBSITE_ID`),
 
-		// Payments
-		"stripe":       regexp.MustCompile(`(?i)stripe\.com|stripe`),
-		"paypal":       regexp.MustCompile(`(?i)paypal\.com|paypal`),
-		"paddle":       regexp.MustCompile(`(?i)paddle\.com|paddle`),
-		"lemonsqueezy": regexp.MustCompile(`(?i)lemonsqueezy|lemon-squeezy`),
+		// Payments - only match SDK imports or API URLs, not the word itself
+		"stripe":       regexp.MustCompile(`(?i)js\.stripe\.com|Stripe\(['"]|stripe/stripe-`),
+		"paypal":       regexp.MustCompile(`(?i)paypal\.com/sdk|paypalobjects\.com|@paypal/`),
+		"paddle":       regexp.MustCompile(`(?i)cdn\.paddle\.com|Paddle\.Setup|paddle\.com/paddlejs`),
+		"lemonsqueezy": regexp.MustCompile(`(?i)lemonsqueezy\.com|@lemonsqueezy/`),
 
-		// Error tracking
-		"sentry":      regexp.MustCompile(`(?i)sentry\.io|@sentry|sentry`),
-		"bugsnag":     regexp.MustCompile(`(?i)bugsnag`),
-		"rollbar":     regexp.MustCompile(`(?i)rollbar`),
-		"honeybadger": regexp.MustCompile(`(?i)honeybadger`),
-		"datadog":     regexp.MustCompile(`(?i)datadoghq\.com|datadog`),
-		"newrelic":    regexp.MustCompile(`(?i)newrelic|new-relic`),
-		"logrocket":   regexp.MustCompile(`(?i)logrocket`),
+		// Error tracking - require DSN patterns or SDK
+		"sentry":      regexp.MustCompile(`(?i)@sentry/|sentry\.io/|Sentry\.init|dsn.*sentry`),
+		"bugsnag":     regexp.MustCompile(`(?i)bugsnag\.com|@bugsnag/|Bugsnag\.start`),
+		"rollbar":     regexp.MustCompile(`(?i)rollbar\.com/js|Rollbar\.init|@rollbar/`),
+		"honeybadger": regexp.MustCompile(`(?i)@honeybadger-io/|honeybadger\.io/`),
+		"datadog":     regexp.MustCompile(`(?i)datadoghq\.com|dd-trace|@datadog/`),
+		"newrelic":    regexp.MustCompile(`(?i)newrelic\.com/|@newrelic/`),
+		"logrocket":   regexp.MustCompile(`(?i)cdn\.logrocket\.com|LogRocket\.init`),
 
-		// Email
-		"postmark":   regexp.MustCompile(`(?i)postmarkapp\.com|postmark`),
-		"sendgrid":   regexp.MustCompile(`(?i)sendgrid`),
-		"mailgun":    regexp.MustCompile(`(?i)mailgun`),
-		"aws_ses":    regexp.MustCompile(`(?i)aws.ses|amazon.ses|ses\.amazonaws`),
-		"resend":     regexp.MustCompile(`(?i)resend\.com`),
-		"mailchimp":  regexp.MustCompile(`(?i)mailchimp`),
-		"convertkit": regexp.MustCompile(`(?i)convertkit|kit\.com`),
+		// Email - require SDK or API patterns
+		"postmark":   regexp.MustCompile(`(?i)postmarkapp\.com|@postmark/|postmark-client`),
+		"sendgrid":   regexp.MustCompile(`(?i)@sendgrid/|sendgrid\.com/`),
+		"mailgun":    regexp.MustCompile(`(?i)mailgun\.com/|mailgun-js|@mailgun/`),
+		"aws_ses":    regexp.MustCompile(`(?i)ses\.amazonaws\.com|@aws-sdk/client-ses|aws-sdk-ses|craft-amazon-ses`),
+		"resend":     regexp.MustCompile(`(?i)api\.resend\.com|@resend/`),
+		"mailchimp":  regexp.MustCompile(`(?i)mailchimp\.com/|@mailchimp/`),
+		"convertkit": regexp.MustCompile(`(?i)convertkit\.com/|@convertkit/`),
 
-		// Auth
-		"auth0":    regexp.MustCompile(`(?i)auth0`),
-		"clerk":    regexp.MustCompile(`(?i)clerk\.com|@clerk`),
-		"firebase": regexp.MustCompile(`(?i)firebase`),
-		"supabase": regexp.MustCompile(`(?i)supabase`),
+		// Auth - require SDK patterns
+		"auth0":    regexp.MustCompile(`(?i)@auth0/|auth0\.com/`),
+		"clerk":    regexp.MustCompile(`(?i)@clerk/|clerk\.com/`),
+		"firebase": regexp.MustCompile(`(?i)firebase\.google\.com|firebaseapp\.com|@firebase/`),
+		"supabase": regexp.MustCompile(`(?i)supabase\.co|@supabase/`),
 
-		// Infrastructure
-		"redis":         regexp.MustCompile(`(?i)redis`),
-		"sidekiq":       regexp.MustCompile(`(?i)sidekiq`),
-		"rabbitmq":      regexp.MustCompile(`(?i)rabbitmq|amqp`),
-		"elasticsearch": regexp.MustCompile(`(?i)elasticsearch|elastic\.co`),
+		// Infrastructure - require specific connection patterns
+		"redis":         regexp.MustCompile(`(?i)redis://|rediss://|Redis\.new|ioredis`),
+		"sidekiq":       regexp.MustCompile(`(?i)Sidekiq::Worker|include Sidekiq|sidekiq\.yml`),
+		"rabbitmq":      regexp.MustCompile(`(?i)amqp://|amqps://|rabbitmq\.com|@rabbitmq/`),
+		"elasticsearch": regexp.MustCompile(`(?i)@elastic/elasticsearch|elasticsearch\.org`),
 
-		// Storage/CDN
-		"aws_s3":     regexp.MustCompile(`(?i)s3\.amazonaws|aws.s3`),
-		"cloudinary": regexp.MustCompile(`(?i)cloudinary`),
-		"cloudflare": regexp.MustCompile(`(?i)cloudflare`),
+		// Storage/CDN - require API URLs
+		"aws_s3":     regexp.MustCompile(`(?i)s3\.amazonaws\.com|@aws-sdk/client-s3`),
+		"cloudinary": regexp.MustCompile(`(?i)cloudinary\.com/|@cloudinary/`),
+		"cloudflare": regexp.MustCompile(`(?i)cdn\.cloudflare\.com|@cloudflare/|cloudflare-workers`),
 
-		// Search
-		"algolia": regexp.MustCompile(`(?i)algolia`),
+		// Search - require SDK
+		"algolia": regexp.MustCompile(`(?i)algolia\.com/|@algolia/|algoliasearch`),
 
-		// AI
-		"openai":      regexp.MustCompile(`(?i)openai`),
-		"anthropic":   regexp.MustCompile(`(?i)anthropic|claude`),
-		"google_ai":   regexp.MustCompile(`(?i)generativeai|gemini`),
-		"mistral":     regexp.MustCompile(`(?i)mistral`),
-		"cohere":      regexp.MustCompile(`(?i)cohere`),
-		"replicate":   regexp.MustCompile(`(?i)replicate`),
-		"huggingface": regexp.MustCompile(`(?i)huggingface|hugging.face`),
+		// AI - require SDK or API patterns
+		"openai":      regexp.MustCompile(`(?i)api\.openai\.com|openai\.ChatCompletion|from openai|openai\.create`),
+		"anthropic":   regexp.MustCompile(`(?i)api\.anthropic\.com|anthropic\.Anthropic|from anthropic`),
+		"google_ai":   regexp.MustCompile(`(?i)@google/generative-ai|generativelanguage\.googleapis\.com`),
+		"mistral":     regexp.MustCompile(`(?i)api\.mistral\.ai|@mistralai/`),
+		"cohere":      regexp.MustCompile(`(?i)api\.cohere\.ai|cohere\.Client`),
+		"replicate":   regexp.MustCompile(`(?i)api\.replicate\.com|replicate\.run`),
+		"huggingface": regexp.MustCompile(`(?i)huggingface\.co/|@huggingface/`),
 
 		// SEO
-		"indexnow": regexp.MustCompile(`(?i)indexnow`),
+		"indexnow": regexp.MustCompile(`(?i)api\.indexnow\.org|indexnow\.org/|IndexNow`),
 	}
 
 	// Regex to find script src URLs
@@ -684,6 +685,10 @@ func detectAnalyticsScripts(rootDir string, services map[string]bool) {
 		"tmp":          true,
 		"log":          true,
 		"logs":         true,
+		"storage":      true,      // Laravel/Craft CMS storage (backups, logs, etc.)
+		"cpresources":  true,      // Craft CMS control panel assets
+		"web":          true,      // Common public web root (contains compiled assets)
+		"public":       true,      // Common public web root
 	}
 
 	// Collect external script URLs to fetch
