@@ -71,7 +71,7 @@ func (c SecurityHeadersCheck) Run(ctx Context) (CheckResult, error) {
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  strings.Join(results, " | "),
+			Message:  strings.Join(results, ", "),
 		}, nil
 	}
 
@@ -100,7 +100,7 @@ func (c SecurityHeadersCheck) Run(ctx Context) (CheckResult, error) {
 		Title:       c.Title(),
 		Severity:    SeverityWarn,
 		Passed:      false,
-		Message:     strings.Join(results, " | "),
+		Message:     strings.Join(results, "\n                    └─ "),
 		Suggestions: suggestions,
 	}, nil
 }
