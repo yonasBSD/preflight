@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/phillips-jon/preflight/internal/config"
@@ -52,10 +53,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Detect services
 	fmt.Println("Detecting services...")
 	services := config.DetectServices(cwd)
+
+	// Collect and sort detected services
+	var detectedServices []string
 	for name, detected := range services {
 		if detected {
-			fmt.Printf("  ✓ %s detected\n", name)
+			detectedServices = append(detectedServices, name)
 		}
+	}
+	sort.Strings(detectedServices)
+
+	for _, name := range detectedServices {
+		fmt.Printf("  ✓ %s detected\n", formatServiceName(name))
 	}
 	fmt.Println()
 
@@ -71,12 +80,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Confirm detected services (y/n for each):")
 	confirmedServices := make(map[string]config.ServiceConfig)
-	for name, detected := range services {
-		if detected {
-			confirm := promptYesNo(reader, fmt.Sprintf("  Use %s?", name), true)
-			if confirm {
-				confirmedServices[name] = config.ServiceConfig{Declared: true}
-			}
+	for _, name := range detectedServices {
+		confirm := promptYesNo(reader, fmt.Sprintf("  Use %s?", formatServiceName(name)), true)
+		if confirm {
+			confirmedServices[name] = config.ServiceConfig{Declared: true}
 		}
 	}
 
@@ -96,7 +103,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	hasLicense := promptYesNo(reader, "Does this project have a LICENSE file (e.g., MIT, Apache, GPL)?", false)
 
 	// Ask about ads
-	hasAds := promptYesNo(reader, "Does this site run ads or advertisements?", false)
+	hasAds := promptYesNo(reader, "Does this site serve ads or advertisements?", false)
 
 	// Ask about IndexNow
 	var indexNowKey string
