@@ -119,14 +119,18 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 			path = root + "/sitemap.xml"
 		}
 		fullPath := filepath.Join(ctx.RootDir, path)
-		if _, err := os.Stat(fullPath); err == nil {
-			return CheckResult{
-				ID:       c.ID(),
-				Title:    c.Title(),
-				Severity: SeverityInfo,
-				Passed:   true,
-				Message:  "sitemap.xml found at " + path,
-			}, nil
+		if content, err := os.ReadFile(fullPath); err == nil {
+			// Check if it has meaningful content
+			contentStr := strings.TrimSpace(string(content))
+			if len(contentStr) > 0 {
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "sitemap.xml found at " + path,
+				}, nil
+			}
 		}
 	}
 
@@ -481,14 +485,18 @@ func (c LLMsTxtCheck) Run(ctx Context) (CheckResult, error) {
 		}
 		for _, path := range paths {
 			fullPath := filepath.Join(ctx.RootDir, path)
-			if _, err := os.Stat(fullPath); err == nil {
-				return CheckResult{
-					ID:       c.ID(),
-					Title:    c.Title(),
-					Severity: SeverityInfo,
-					Passed:   true,
-					Message:  "llms.txt found at " + path,
-				}, nil
+			if content, err := os.ReadFile(fullPath); err == nil {
+				// Check if it has meaningful content
+				contentStr := strings.TrimSpace(string(content))
+				if len(contentStr) > 0 {
+					return CheckResult{
+						ID:       c.ID(),
+						Title:    c.Title(),
+						Severity: SeverityInfo,
+						Passed:   true,
+						Message:  "llms.txt found at " + path,
+					}, nil
+				}
 			}
 		}
 	}
@@ -530,22 +538,39 @@ func (c AdsTxtCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	paths := []string{
-		"public/ads.txt",
-		"static/ads.txt",
-		"ads.txt",
+	// Common web root directories across frameworks
+	webRoots := []string{
+		"public",  // Laravel, Rails, many Node.js
+		"static",  // Hugo, some SSGs
+		"web",     // Craft CMS, Symfony
+		"www",     // Some PHP apps
+		"dist",    // Built static sites
+		"build",   // Build outputs
+		"_site",   // Jekyll
+		"out",     // Next.js static export
+		"",        // Root directory
 	}
 
-	for _, path := range paths {
+	for _, root := range webRoots {
+		var path string
+		if root == "" {
+			path = "ads.txt"
+		} else {
+			path = root + "/ads.txt"
+		}
 		fullPath := filepath.Join(ctx.RootDir, path)
-		if _, err := os.Stat(fullPath); err == nil {
-			return CheckResult{
-				ID:       c.ID(),
-				Title:    c.Title(),
-				Severity: SeverityInfo,
-				Passed:   true,
-				Message:  "ads.txt found at " + path,
-			}, nil
+		if content, err := os.ReadFile(fullPath); err == nil {
+			// Check if it has meaningful content
+			contentStr := strings.TrimSpace(string(content))
+			if len(contentStr) > 0 {
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "ads.txt found at " + path,
+				}, nil
+			}
 		}
 	}
 
