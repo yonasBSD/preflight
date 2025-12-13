@@ -105,43 +105,41 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Ask about ads
 	hasAds := promptYesNo(reader, "Does this site serve ads or advertisements?", false)
 
-	// Handle IndexNow - check if detected or ask
+	// Handle IndexNow - user already confirmed/declined in services section
 	var indexNowKey string
-	indexNowDetected := confirmedServices["indexnow"].Declared
+	indexNowConfirmed := confirmedServices["indexnow"].Declared
 
-	if indexNowDetected {
+	if indexNowConfirmed {
 		// Try to extract key from .env files
 		indexNowKey = detectIndexNowKey(cwd)
 		if indexNowKey != "" {
-			fmt.Printf("IndexNow detected with key: %s\n", indexNowKey)
+			fmt.Printf("IndexNow key found: %s\n", indexNowKey)
 		} else {
-			fmt.Println("IndexNow detected but no key found in .env files or web root")
-			indexNowKey = promptOptional(reader, "  Paste your IndexNow key")
-		}
-		// Remove from confirmedServices since we handle it separately
-		delete(confirmedServices, "indexnow")
-	} else if promptYesNo(reader, "Do you use IndexNow for faster search engine indexing?", false) {
-		fmt.Println("  1. Paste existing key")
-		fmt.Println("  2. Generate new key")
-		choice := promptWithDefault(reader, "  Choose", "2")
-		if choice == "1" {
-			indexNowKey = promptOptional(reader, "  Paste your IndexNow key")
-		} else {
-			indexNowKey = generateIndexNowKey()
-			fmt.Printf("  Generated key: %s\n", indexNowKey)
+			fmt.Println("IndexNow enabled but no key found in .env files or web root")
+			fmt.Println("  1. Paste existing key")
+			fmt.Println("  2. Generate new key")
+			choice := promptWithDefault(reader, "  Choose", "2")
+			if choice == "1" {
+				indexNowKey = promptOptional(reader, "  Paste your IndexNow key")
+			} else {
+				indexNowKey = generateIndexNowKey()
+				fmt.Printf("  Generated key: %s\n", indexNowKey)
 
-			// Create the key file in the web root
-			webRoot := detectWebRoot(cwd, stack)
-			keyFilePath := filepath.Join(cwd, webRoot, indexNowKey+".txt")
-			if err := os.MkdirAll(filepath.Dir(keyFilePath), 0755); err == nil {
-				if err := os.WriteFile(keyFilePath, []byte(indexNowKey+"\n"), 0644); err == nil {
-					fmt.Printf("  ✅ Created %s/%s.txt\n", webRoot, indexNowKey)
-				} else {
-					fmt.Printf("  ⚠️  Could not create key file: %v\n", err)
-					fmt.Printf("     Create %s/%s.txt containing: %s\n", webRoot, indexNowKey, indexNowKey)
+				// Create the key file in the web root
+				webRoot := detectWebRoot(cwd, stack)
+				keyFilePath := filepath.Join(cwd, webRoot, indexNowKey+".txt")
+				if err := os.MkdirAll(filepath.Dir(keyFilePath), 0755); err == nil {
+					if err := os.WriteFile(keyFilePath, []byte(indexNowKey+"\n"), 0644); err == nil {
+						fmt.Printf("  ✅ Created %s/%s.txt\n", webRoot, indexNowKey)
+					} else {
+						fmt.Printf("  ⚠️  Could not create key file: %v\n", err)
+						fmt.Printf("     Create %s/%s.txt containing: %s\n", webRoot, indexNowKey, indexNowKey)
+					}
 				}
 			}
 		}
+		// Remove from confirmedServices since we handle it separately
+		delete(confirmedServices, "indexnow")
 	}
 
 	// Build config
