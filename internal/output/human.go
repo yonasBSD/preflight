@@ -51,6 +51,8 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"FILES":     "📄",
 		"SSL":       "🔐",
 		"LICENSE":   "📜",
+		"DEPS":      "📦",
+		"INDEXNOW":  "🔗",
 	}
 
 	// Map check IDs to display categories
@@ -107,6 +109,8 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"llmsTxt":         "FILES",
 		"adsTxt":          "FILES",
 		"license":         "LICENSE",
+		"vulnerability":   "DEPS",
+		"indexNow":        "INDEXNOW",
 	}
 
 	// Print results
@@ -124,7 +128,7 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		status := formatStatus(r)
 		categoryLabel := fmt.Sprintf("%s %-10s", icon, category)
 
-		fmt.Printf("  %s %s%-38s%s %s\n", categoryLabel, colorReset, r.Title, colorReset, status)
+		fmt.Printf("  %s %s%-45s%s %s\n", categoryLabel, colorReset, r.Title, colorReset, status)
 
 		if !r.Passed && r.Message != "" {
 			fmt.Printf("  %s                  └─ %s%s\n", colorGray, r.Message, colorReset)

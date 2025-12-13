@@ -274,7 +274,7 @@ func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceCon
 			ExampleFile: ".env.example",
 		},
 		HealthEndpoint: &config.HealthEndpointConfig{
-			Enabled: true,
+			Enabled: stackNeedsHealthEndpoint(stack),
 			Path:    "/health",
 		},
 		Sentry: &config.SentryConfig{
@@ -695,4 +695,20 @@ func detectWebRoot(cwd, stack string) string {
 
 	// Default to public
 	return "public"
+}
+
+// stackNeedsHealthEndpoint returns true for application stacks that typically have health endpoints
+// CMS and static sites don't need dedicated health endpoints
+func stackNeedsHealthEndpoint(stack string) bool {
+	appStacks := map[string]bool{
+		"rails":   true,
+		"node":    true,
+		"next":    true,
+		"laravel": true,
+		"django":  true,
+		"python":  true,
+		"go":      true,
+		"rust":    true,
+	}
+	return appStacks[stack]
 }
