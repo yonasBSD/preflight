@@ -57,6 +57,7 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"LANG":      "🌐",
 		"PAGES":     "📃",
 		"DEBUG":     "🐞",
+		"PERF":      "⚡",
 	}
 
 	// Map check IDs to display categories
@@ -120,7 +121,8 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"lang":              "LANG",
 		"error_pages":       "PAGES",
 		"debug_statements":  "DEBUG",
-		"structured_data":   "SEO",
+		"structured_data":      "SEO",
+		"image_optimization":   "PERF",
 	}
 
 	// Print results

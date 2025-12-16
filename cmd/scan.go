@@ -200,6 +200,7 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 	enabledChecks = append(enabledChecks, checks.ErrorPagesCheck{})
 	enabledChecks = append(enabledChecks, checks.DebugStatementsCheck{})
 	enabledChecks = append(enabledChecks, checks.StructuredDataCheck{})
+	enabledChecks = append(enabledChecks, checks.ImageOptimizationCheck{})
 
 	// License Check - only if enabled (opt-in for open source projects)
 	if cfg.Checks.License != nil && cfg.Checks.License.Enabled {
