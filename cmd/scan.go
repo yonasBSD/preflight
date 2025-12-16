@@ -188,8 +188,9 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 	enabledChecks = append(enabledChecks, checks.ErrorPagesCheck{})
 	enabledChecks = append(enabledChecks, checks.ImageOptimizationCheck{})
 
-	// === Legal ===
+	// === Legal & Compliance ===
 	enabledChecks = append(enabledChecks, checks.LegalPagesCheck{})
+	enabledChecks = append(enabledChecks, checks.CookieConsentCheck{})
 
 	// === Web Standard Files ===
 	enabledChecks = append(enabledChecks, checks.FaviconCheck{})

@@ -128,6 +128,7 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"humansTxt":            "FILES",
 		"www_redirect":         "INFRA",
 		"legal_pages":          "LEGAL",
+		"cookie_consent":       "LEGAL",
 	}
 
 	// Print results

@@ -565,6 +565,14 @@ func formatServiceName(svc string) string {
 
 		// SEO
 		"indexnow": "IndexNow",
+
+		// Cookie Consent
+		"cookieconsent": "CookieConsent",
+		"cookiebot":     "Cookiebot",
+		"onetrust":      "OneTrust",
+		"termly":        "Termly",
+		"cookieyes":     "CookieYes",
+		"iubenda":       "Iubenda",
 	}
 	if name, ok := names[svc]; ok {
 		return name

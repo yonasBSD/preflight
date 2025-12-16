@@ -85,6 +85,7 @@ preflight checks
 | **Error Pages** | Checks for custom 404/500 error pages |
 | **Image Optimization** | Finds large images (>500KB) that hurt load times |
 | **Legal Pages** | Checks for privacy policy and terms of service pages |
+| **Cookie Consent** | Detects cookie consent solution (GDPR/CCPA compliance) |
 | **Favicon & Icons** | Checks for favicon, apple-touch-icon (.png, .webp, .svg), and web manifest |
 | **robots.txt** | Verifies robots.txt exists and has content |
 | **sitemap.xml** | Checks for sitemap presence or generator |

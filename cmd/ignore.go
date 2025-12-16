@@ -189,7 +189,7 @@ var listChecksCmd = &cobra.Command{
 			"envParity", "healthEndpoint",
 			"sentry", "plausible", "fathom", "googleAnalytics", "redis", "sidekiq", "stripe",
 			"vulnerability", "debug_statements", "error_pages", "image_optimization",
-			"legal_pages",
+			"legal_pages", "cookie_consent",
 			"favicon", "robotsTxt", "sitemap", "llmsTxt", "adsTxt", "humansTxt", "license",
 		}
 
