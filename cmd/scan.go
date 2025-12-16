@@ -106,130 +106,86 @@ func runScan(cmd *cobra.Command, args []string) error {
 func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 	var enabledChecks []checks.Check
 
-	// ENV Parity Check
-	if cfg.Checks.EnvParity != nil && cfg.Checks.EnvParity.Enabled {
-		enabledChecks = append(enabledChecks, checks.EnvParityCheck{})
-	}
-
-	// Health Endpoint Check
-	if cfg.Checks.HealthEndpoint != nil && cfg.Checks.HealthEndpoint.Enabled {
-		enabledChecks = append(enabledChecks, checks.HealthCheck{})
-	}
-
-	// Stripe Webhook Check
-	if cfg.Checks.StripeWebhook != nil && cfg.Checks.StripeWebhook.Enabled {
-		enabledChecks = append(enabledChecks, checks.StripeWebhookCheck{})
-	}
-
-	// Sentry Check - runs if service is declared
-	if cfg.Services["sentry"].Declared {
-		enabledChecks = append(enabledChecks, checks.SentryCheck{})
-	}
-
-	// Plausible Check - runs if service is declared
-	if cfg.Services["plausible"].Declared {
-		enabledChecks = append(enabledChecks, checks.PlausibleCheck{})
-	}
-
-	// Fathom Check - runs if service is declared
-	if cfg.Services["fathom"].Declared {
-		enabledChecks = append(enabledChecks, checks.FathomCheck{})
-	}
-
-	// Google Analytics Check - runs if service is declared
-	if cfg.Services["google_analytics"].Declared {
-		enabledChecks = append(enabledChecks, checks.GoogleAnalyticsCheck{})
-	}
-
-	// Redis Check - runs if service is declared
-	if cfg.Services["redis"].Declared {
-		enabledChecks = append(enabledChecks, checks.RedisCheck{})
-	}
-
-	// Sidekiq Check - runs if service is declared
-	if cfg.Services["sidekiq"].Declared {
-		enabledChecks = append(enabledChecks, checks.SidekiqCheck{})
-	}
-
-	// SEO Meta Check
+	// === SEO & Social ===
 	if cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled {
 		enabledChecks = append(enabledChecks, checks.SEOMetadataCheck{})
-	}
-
-	// OG & Twitter Cards Check - runs if SEO Meta is configured
-	if cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled {
-		enabledChecks = append(enabledChecks, checks.OGTwitterCheck{})
-	}
-
-	// Canonical URL Check - runs if SEO Meta is configured
-	if cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled {
 		enabledChecks = append(enabledChecks, checks.CanonicalURLCheck{})
 	}
-
-	// Viewport Meta Check - runs if SEO Meta is configured
-	if cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled {
-		enabledChecks = append(enabledChecks, checks.ViewportCheck{})
+	enabledChecks = append(enabledChecks, checks.StructuredDataCheck{})
+	if cfg.Checks.IndexNow != nil && cfg.Checks.IndexNow.Enabled {
+		enabledChecks = append(enabledChecks, checks.IndexNowCheck{})
 	}
-
-	// HTML Lang Attribute Check - runs if SEO Meta is configured
 	if cfg.Checks.SEOMeta != nil && cfg.Checks.SEOMeta.Enabled {
+		enabledChecks = append(enabledChecks, checks.OGTwitterCheck{})
+		enabledChecks = append(enabledChecks, checks.ViewportCheck{})
 		enabledChecks = append(enabledChecks, checks.LangAttributeCheck{})
 	}
 
-	// Security Headers Check
+	// === Security & Infrastructure ===
 	if cfg.Checks.Security != nil && cfg.Checks.Security.Enabled {
 		enabledChecks = append(enabledChecks, checks.SecurityHeadersCheck{})
 	}
-
-	// SSL Certificate Check - runs if production URL is set
 	if cfg.URLs.Production != "" {
 		enabledChecks = append(enabledChecks, checks.SSLCheck{})
-	}
-
-	// WWW Redirect Check - runs if production URL is set
-	if cfg.URLs.Production != "" {
 		enabledChecks = append(enabledChecks, checks.WWWRedirectCheck{})
 	}
-
-	// Email Auth Check - runs if enabled and production URL is set
 	if cfg.Checks.EmailAuth != nil && cfg.Checks.EmailAuth.Enabled && cfg.URLs.Production != "" {
 		enabledChecks = append(enabledChecks, checks.EmailAuthCheck{})
 	}
-
-	// Secrets Check
 	if cfg.Checks.Secrets != nil && cfg.Checks.Secrets.Enabled {
 		enabledChecks = append(enabledChecks, checks.SecretScanCheck{})
 	}
 
-	// Always run these checks - they're universal best practices
+	// === Environment & Health ===
+	if cfg.Checks.EnvParity != nil && cfg.Checks.EnvParity.Enabled {
+		enabledChecks = append(enabledChecks, checks.EnvParityCheck{})
+	}
+	if cfg.Checks.HealthEndpoint != nil && cfg.Checks.HealthEndpoint.Enabled {
+		enabledChecks = append(enabledChecks, checks.HealthCheck{})
+	}
+
+	// === Services ===
+	if cfg.Services["sentry"].Declared {
+		enabledChecks = append(enabledChecks, checks.SentryCheck{})
+	}
+	if cfg.Services["plausible"].Declared {
+		enabledChecks = append(enabledChecks, checks.PlausibleCheck{})
+	}
+	if cfg.Services["fathom"].Declared {
+		enabledChecks = append(enabledChecks, checks.FathomCheck{})
+	}
+	if cfg.Services["google_analytics"].Declared {
+		enabledChecks = append(enabledChecks, checks.GoogleAnalyticsCheck{})
+	}
+	if cfg.Services["redis"].Declared {
+		enabledChecks = append(enabledChecks, checks.RedisCheck{})
+	}
+	if cfg.Services["sidekiq"].Declared {
+		enabledChecks = append(enabledChecks, checks.SidekiqCheck{})
+	}
+	if cfg.Checks.StripeWebhook != nil && cfg.Checks.StripeWebhook.Enabled {
+		enabledChecks = append(enabledChecks, checks.StripeWebhookCheck{})
+	}
+
+	// === Code Quality & Performance ===
+	enabledChecks = append(enabledChecks, checks.VulnerabilityCheck{})
+	enabledChecks = append(enabledChecks, checks.DebugStatementsCheck{})
+	enabledChecks = append(enabledChecks, checks.ErrorPagesCheck{})
+	enabledChecks = append(enabledChecks, checks.ImageOptimizationCheck{})
+
+	// === Web Standard Files ===
 	enabledChecks = append(enabledChecks, checks.FaviconCheck{})
 	enabledChecks = append(enabledChecks, checks.RobotsTxtCheck{})
 	enabledChecks = append(enabledChecks, checks.SitemapCheck{})
 	enabledChecks = append(enabledChecks, checks.LLMsTxtCheck{})
-	enabledChecks = append(enabledChecks, checks.VulnerabilityCheck{})
-	enabledChecks = append(enabledChecks, checks.ErrorPagesCheck{})
-	enabledChecks = append(enabledChecks, checks.DebugStatementsCheck{})
-	enabledChecks = append(enabledChecks, checks.StructuredDataCheck{})
-	enabledChecks = append(enabledChecks, checks.ImageOptimizationCheck{})
-
-	// License Check - only if enabled (opt-in for open source projects)
-	if cfg.Checks.License != nil && cfg.Checks.License.Enabled {
-		enabledChecks = append(enabledChecks, checks.LicenseCheck{})
-	}
-
-	// Ads.txt Check - only if explicitly enabled
 	if cfg.Checks.AdsTxt != nil && cfg.Checks.AdsTxt.Enabled {
 		enabledChecks = append(enabledChecks, checks.AdsTxtCheck{})
 	}
-
-	// IndexNow Check - only if explicitly enabled
-	if cfg.Checks.IndexNow != nil && cfg.Checks.IndexNow.Enabled {
-		enabledChecks = append(enabledChecks, checks.IndexNowCheck{})
-	}
-
-	// Humans.txt Check - only if explicitly enabled
 	if cfg.Checks.HumansTxt != nil && cfg.Checks.HumansTxt.Enabled {
 		enabledChecks = append(enabledChecks, checks.HumansTxtCheck{})
+	}
+	if cfg.Checks.License != nil && cfg.Checks.License.Enabled {
+		enabledChecks = append(enabledChecks, checks.LicenseCheck{})
 	}
 
 	return enabledChecks
