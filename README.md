@@ -63,14 +63,24 @@ preflight scan --ci --format json
 | **Vulnerability Scan** | Checks for dependency vulnerabilities (bundle audit, npm audit, etc.) |
 | **SEO Metadata** | Checks for title, description, and Open Graph tags |
 | **OG & Twitter Cards** | Validates og:image, twitter:card and social sharing metadata |
+| **Canonical URL** | Verifies canonical link tag is present |
+| **Viewport** | Checks for proper viewport meta tag for mobile |
+| **Lang Attribute** | Validates html lang attribute for accessibility |
+| **Structured Data** | Checks for JSON-LD Schema.org markup |
 | **Security Headers** | Validates HSTS, CSP, X-Content-Type-Options on both prod and staging |
 | **SSL Certificate** | Checks SSL validity and warns before expiration |
+| **WWW Redirect** | Verifies www/non-www redirect to canonical URL |
+| **Email Auth** | Checks SPF/DMARC DNS records for email deliverability (opt-in) |
 | **Secret Scanning** | Finds leaked API keys and credentials in code |
+| **Debug Statements** | Detects console.log, var_dump, debugger left in code |
+| **Error Pages** | Checks for custom 404/500 error pages |
+| **Image Optimization** | Finds large images (>500KB) that hurt load times |
 | **Favicon & Icons** | Checks for favicon, apple-touch-icon (.png, .webp, .svg), and web manifest |
 | **robots.txt** | Verifies robots.txt exists and has content |
 | **sitemap.xml** | Checks for sitemap presence or generator |
 | **llms.txt** | Checks for LLM crawler guidance file |
 | **ads.txt** | Validates ads.txt for ad-supported sites (opt-in) |
+| **humans.txt** | Checks for humans.txt to credit the team (opt-in) |
 | **IndexNow** | Verifies IndexNow key file for faster search indexing (opt-in) |
 | **LICENSE** | Checks for license file (opt-in, for open source projects) |
 
@@ -153,6 +163,12 @@ checks:
   indexNow:
     enabled: true
     key: "your32characterhexkeyhere00000"
+
+  emailAuth:
+    enabled: true  # opt-in, checks SPF/DMARC on production domain
+
+  humansTxt:
+    enabled: false  # opt-in, credits the team
 
   license:
     enabled: false  # opt-in, for open source projects
