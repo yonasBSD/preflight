@@ -186,6 +186,11 @@ func buildEnabledChecks(cfg *config.PreflightConfig) []checks.Check {
 		enabledChecks = append(enabledChecks, checks.SSLCheck{})
 	}
 
+	// WWW Redirect Check - runs if production URL is set
+	if cfg.URLs.Production != "" {
+		enabledChecks = append(enabledChecks, checks.WWWRedirectCheck{})
+	}
+
 	// Email Auth Check - runs if enabled and production URL is set
 	if cfg.Checks.EmailAuth != nil && cfg.Checks.EmailAuth.Enabled && cfg.URLs.Production != "" {
 		enabledChecks = append(enabledChecks, checks.EmailAuthCheck{})

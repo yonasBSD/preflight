@@ -68,6 +68,7 @@ var Registry = []Check{
 	ImageOptimizationCheck{},
 	EmailAuthCheck{},
 	HumansTxtCheck{},
+	WWWRedirectCheck{},
 }
 
 // isLocalURL checks if a URL points to localhost or local IP

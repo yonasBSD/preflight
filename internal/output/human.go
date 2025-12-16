@@ -125,6 +125,7 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		"image_optimization":   "PERF",
 		"email_auth":           "EMAIL",
 		"humansTxt":            "FILES",
+		"www_redirect":         "INFRA",
 	}
 
 	// Print results
