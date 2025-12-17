@@ -50,6 +50,9 @@ preflight init
 # Run all checks
 preflight scan
 
+# Scan a specific directory
+preflight scan /path/to/project
+
 # Run in CI mode with JSON output
 preflight scan --ci --format json
 
