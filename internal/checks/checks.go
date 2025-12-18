@@ -70,6 +70,13 @@ var Registry = []Check{
 	HumansTxtCheck{},
 	WWWRedirectCheck{},
 	LegalPagesCheck{},
+	// Cookie Consent checks
+	CookieConsentJSCheck{},
+	CookiebotCheck{},
+	OneTrustCheck{},
+	TermlyCheck{},
+	CookieYesCheck{},
+	IubendaCheck{},
 }
 
 // isLocalURL checks if a URL points to localhost or local IP

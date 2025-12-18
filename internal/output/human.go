@@ -158,9 +158,15 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 	}
 
 	// Separate results into non-service checks and service checks
+	// Also filter out skipped checks entirely
 	var coreResults []checks.CheckResult
 	var serviceResults []checks.CheckResult
 	for _, r := range results {
+		// Skip checks that are just "skipping" or "skipped" - don't clutter output
+		if r.Passed && (strings.Contains(strings.ToLower(r.Message), "skipping") ||
+			strings.Contains(strings.ToLower(r.Message), "skipped")) {
+			continue
+		}
 		if serviceCheckIDs[r.ID] {
 			serviceResults = append(serviceResults, r)
 		} else {

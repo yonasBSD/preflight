@@ -18,17 +18,25 @@ func (c CanonicalURLCheck) Title() string {
 
 func (c CanonicalURLCheck) Run(ctx Context) (CheckResult, error) {
 	cfg := ctx.Config.Checks.SEOMeta
-	if cfg == nil || cfg.MainLayout == "" {
+
+	// Get configured layout or auto-detect
+	var configuredLayout string
+	if cfg != nil {
+		configuredLayout = cfg.MainLayout
+	}
+	layoutFile := getLayoutFile(ctx.RootDir, ctx.Config.Stack, configuredLayout)
+
+	if layoutFile == "" {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  "Check not configured (no main layout set)",
+			Message:  "No layout file found, skipping",
 		}, nil
 	}
 
-	layoutPath := filepath.Join(ctx.RootDir, cfg.MainLayout)
+	layoutPath := filepath.Join(ctx.RootDir, layoutFile)
 	content, err := os.ReadFile(layoutPath)
 	if err != nil {
 		return CheckResult{

@@ -1,7 +1,9 @@
 package checks
 
 import (
+	"io"
 	"regexp"
+	"strings"
 )
 
 // CookieConsentJSCheck verifies CookieConsent JS library is properly set up
@@ -27,21 +29,56 @@ func (c CookieConsentJSCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`cookieconsent`),
-		regexp.MustCompile(`CookieConsent`),
-		regexp.MustCompile(`cdn\.jsdelivr\.net.*cookieconsent`),
+	// Check live site for the consent script
+	livePatterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)cookieconsent\.min\.js`),
+		regexp.MustCompile(`(?i)cdn\.jsdelivr\.net.*cookieconsent`),
+		regexp.MustCompile(`(?i)osano.*cookieconsent`),
+		regexp.MustCompile(`(?i)CookieConsent\.run\(`),
+		regexp.MustCompile(`(?i)cc\.initialise\(`),
 	}
 
-	found := searchForPatterns(ctx.RootDir, ctx.Config.Stack, patterns)
+	foundOnLive, liveURL := checkLiveSiteForPatterns(ctx, livePatterns)
 
-	if found {
+	if foundOnLive {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  "Cookie Consent script found",
+			Message:  "Cookie Consent script found on live site",
+		}, nil
+	}
+
+	// Fall back to checking codebase
+	codePatterns := []*regexp.Regexp{
+		regexp.MustCompile(`cookieconsent`),
+		regexp.MustCompile(`CookieConsent`),
+		regexp.MustCompile(`cdn\.jsdelivr\.net.*cookieconsent`),
+	}
+
+	found := searchForPatterns(ctx.RootDir, ctx.Config.Stack, codePatterns)
+
+	if found {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "Cookie Consent code found but not detected on live site",
+				Suggestions: []string{
+					"Ensure the consent banner script is loading in production",
+					"Check browser console for script errors",
+				},
+			}, nil
+		}
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Cookie Consent script found in codebase",
 		}, nil
 	}
 
@@ -80,7 +117,40 @@ func (c CookiebotCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	// Check live site for Cookiebot script
+	livePatterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)consent\.cookiebot\.com`),
+		regexp.MustCompile(`(?i)Cookiebot\.consent`),
+		regexp.MustCompile(`(?i)window\.Cookiebot`),
+		regexp.MustCompile(`(?i)data-cbid=`),
+	}
+
+	foundOnLive, liveURL := checkLiveSiteForPatterns(ctx, livePatterns)
+
+	if foundOnLive {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Cookiebot script found on live site",
+		}, nil
+	}
+
 	if hasEnvVar(ctx.RootDir, "COOKIEBOT_") {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "Cookiebot env var found but not detected on live site",
+				Suggestions: []string{
+					"Verify COOKIEBOT_CBID is correct",
+					"Check that the script tag is in your page head",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -99,6 +169,18 @@ func (c CookiebotCheck) Run(ctx Context) (CheckResult, error) {
 	found := searchForPatterns(ctx.RootDir, ctx.Config.Stack, patterns)
 
 	if found {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "Cookiebot code found but not detected on live site",
+				Suggestions: []string{
+					"Ensure the Cookiebot script is loading in production",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -144,7 +226,39 @@ func (c OneTrustCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	// Check live site for OneTrust script
+	livePatterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)cdn\.cookielaw\.org`),
+		regexp.MustCompile(`(?i)optanon-wrapper`),
+		regexp.MustCompile(`(?i)onetrust-consent`),
+		regexp.MustCompile(`(?i)OneTrust\.Init`),
+	}
+
+	foundOnLive, liveURL := checkLiveSiteForPatterns(ctx, livePatterns)
+
+	if foundOnLive {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "OneTrust script found on live site",
+		}, nil
+	}
+
 	if hasEnvVar(ctx.RootDir, "ONETRUST_") {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "OneTrust env var found but not detected on live site",
+				Suggestions: []string{
+					"Verify OneTrust configuration is correct",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -164,6 +278,18 @@ func (c OneTrustCheck) Run(ctx Context) (CheckResult, error) {
 	found := searchForPatterns(ctx.RootDir, ctx.Config.Stack, patterns)
 
 	if found {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "OneTrust code found but not detected on live site",
+				Suggestions: []string{
+					"Ensure the OneTrust script is loading in production",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -208,7 +334,38 @@ func (c TermlyCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	// Check live site for Termly script
+	livePatterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)app\.termly\.io`),
+		regexp.MustCompile(`(?i)termly\.min\.js`),
+		regexp.MustCompile(`(?i)termly-code-snippet`),
+	}
+
+	foundOnLive, liveURL := checkLiveSiteForPatterns(ctx, livePatterns)
+
+	if foundOnLive {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Termly script found on live site",
+		}, nil
+	}
+
 	if hasEnvVar(ctx.RootDir, "TERMLY_") {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "Termly env var found but not detected on live site",
+				Suggestions: []string{
+					"Verify Termly configuration is correct",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -226,6 +383,18 @@ func (c TermlyCheck) Run(ctx Context) (CheckResult, error) {
 	found := searchForPatterns(ctx.RootDir, ctx.Config.Stack, patterns)
 
 	if found {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "Termly code found but not detected on live site",
+				Suggestions: []string{
+					"Ensure the Termly script is loading in production",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -270,7 +439,38 @@ func (c CookieYesCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	// Check live site for CookieYes script
+	livePatterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)cdn-cookieyes\.com`),
+		regexp.MustCompile(`(?i)cookieyes\.min\.js`),
+		regexp.MustCompile(`(?i)cky-consent`),
+	}
+
+	foundOnLive, liveURL := checkLiveSiteForPatterns(ctx, livePatterns)
+
+	if foundOnLive {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "CookieYes script found on live site",
+		}, nil
+	}
+
 	if hasEnvVar(ctx.RootDir, "COOKIEYES_") {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "CookieYes env var found but not detected on live site",
+				Suggestions: []string{
+					"Verify CookieYes configuration is correct",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -289,6 +489,18 @@ func (c CookieYesCheck) Run(ctx Context) (CheckResult, error) {
 	found := searchForPatterns(ctx.RootDir, ctx.Config.Stack, patterns)
 
 	if found {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "CookieYes code found but not detected on live site",
+				Suggestions: []string{
+					"Ensure the CookieYes script is loading in production",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -333,7 +545,38 @@ func (c IubendaCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	// Check live site for Iubenda script
+	livePatterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)cdn\.iubenda\.com`),
+		regexp.MustCompile(`(?i)_iub\.csConfiguration`),
+		regexp.MustCompile(`(?i)iubenda-cs-banner`),
+	}
+
+	foundOnLive, liveURL := checkLiveSiteForPatterns(ctx, livePatterns)
+
+	if foundOnLive {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Iubenda script found on live site",
+		}, nil
+	}
+
 	if hasEnvVar(ctx.RootDir, "IUBENDA_") {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "Iubenda env var found but not detected on live site",
+				Suggestions: []string{
+					"Verify Iubenda configuration is correct",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -352,6 +595,18 @@ func (c IubendaCheck) Run(ctx Context) (CheckResult, error) {
 	found := searchForPatterns(ctx.RootDir, ctx.Config.Stack, patterns)
 
 	if found {
+		if liveURL != "" {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityWarn,
+				Passed:   false,
+				Message:  "Iubenda code found but not detected on live site",
+				Suggestions: []string{
+					"Ensure the Iubenda script is loading in production",
+				},
+			}, nil
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
@@ -371,4 +626,39 @@ func (c IubendaCheck) Run(ctx Context) (CheckResult, error) {
 			"Add Iubenda cookie banner script to your templates",
 		},
 	}, nil
+}
+
+// checkLiveSiteForPatterns fetches the live site and checks for patterns
+// Returns (found, urlChecked) - urlChecked is empty if no URL was available
+func checkLiveSiteForPatterns(ctx Context, patterns []*regexp.Regexp) (bool, string) {
+	// Try production URL first, then staging
+	url := ctx.Config.URLs.Production
+	if url == "" {
+		url = ctx.Config.URLs.Staging
+	}
+	if url == "" || ctx.Client == nil {
+		return false, ""
+	}
+
+	resp, _, err := tryURL(ctx.Client, url)
+	if err != nil {
+		return false, url
+	}
+	defer resp.Body.Close()
+
+	// Read up to 1MB of response
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if err != nil {
+		return false, url
+	}
+
+	content := strings.ToLower(string(body))
+
+	for _, pattern := range patterns {
+		if pattern.MatchString(content) {
+			return true, url
+		}
+	}
+
+	return false, url
 }

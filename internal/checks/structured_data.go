@@ -64,17 +64,6 @@ func (c StructuredDataCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	// If no SEOMeta configured, return info status (not a warning for sites that don't need it)
-	if cfg == nil || !cfg.Enabled {
-		return CheckResult{
-			ID:       c.ID(),
-			Title:    c.Title(),
-			Severity: SeverityInfo,
-			Passed:   true,
-			Message:  "No structured data found (SEO check not enabled)",
-		}, nil
-	}
-
 	return CheckResult{
 		ID:       c.ID(),
 		Title:    c.Title(),

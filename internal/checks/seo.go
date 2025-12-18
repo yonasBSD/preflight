@@ -19,17 +19,25 @@ func (c SEOMetadataCheck) Title() string {
 
 func (c SEOMetadataCheck) Run(ctx Context) (CheckResult, error) {
 	cfg := ctx.Config.Checks.SEOMeta
-	if cfg == nil || cfg.MainLayout == "" {
+
+	// Get configured layout or auto-detect
+	var configuredLayout string
+	if cfg != nil {
+		configuredLayout = cfg.MainLayout
+	}
+	layoutFile := getLayoutFile(ctx.RootDir, ctx.Config.Stack, configuredLayout)
+
+	if layoutFile == "" {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  "Check not configured",
+			Message:  "No layout file found, skipping",
 		}, nil
 	}
 
-	layoutPath := filepath.Join(ctx.RootDir, cfg.MainLayout)
+	layoutPath := filepath.Join(ctx.RootDir, layoutFile)
 	content, err := os.ReadFile(layoutPath)
 	if err != nil {
 		return CheckResult{
@@ -85,6 +93,112 @@ func (c SEOMetadataCheck) Run(ctx Context) (CheckResult, error) {
 			"Consider using a SEO component or helper",
 		},
 	}, nil
+}
+
+// getLayoutFile returns the configured layout or auto-detects one based on stack
+func getLayoutFile(rootDir string, stack string, configuredLayout string) string {
+	// Use configured layout if set
+	if configuredLayout != "" {
+		return configuredLayout
+	}
+
+	// Auto-detect based on stack
+	layoutsByStack := map[string][]string{
+		"next": {
+			"app/layout.tsx", "app/layout.js", "app/layout.jsx",
+			"src/app/layout.tsx", "src/app/layout.js",
+			"pages/_app.tsx", "pages/_app.js", "pages/_document.tsx", "pages/_document.js",
+		},
+		"react": {
+			"index.html", "public/index.html", "src/index.html",
+		},
+		"vite": {
+			"index.html", "src/index.html",
+		},
+		"vue": {
+			"index.html", "public/index.html", "src/App.vue",
+		},
+		"svelte": {
+			"src/app.html", "index.html",
+		},
+		"angular": {
+			"src/index.html",
+		},
+		"rails": {
+			"app/views/layouts/application.html.erb",
+			"app/views/layouts/base.html.erb",
+		},
+		"laravel": {
+			"resources/views/layouts/app.blade.php",
+			"resources/views/layouts/main.blade.php",
+		},
+		"django": {
+			"templates/base.html",
+			"templates/layout.html",
+		},
+		"craft": {
+			"templates/_layout.twig",
+			"templates/_layouts/main.twig",
+			"templates/_layouts/base.twig",
+			"templates/_base.twig",
+		},
+		"hugo": {
+			"layouts/_default/baseof.html",
+			"layouts/_default/base.html",
+		},
+		"jekyll": {
+			"_layouts/default.html",
+			"_layouts/base.html",
+		},
+		"gatsby": {
+			"src/components/layout.js",
+			"src/components/Layout.js",
+			"src/components/layout.tsx",
+		},
+		"astro": {
+			"src/layouts/Layout.astro",
+			"src/layouts/Base.astro",
+			"src/layouts/BaseLayout.astro",
+		},
+		"eleventy": {
+			"_includes/base.njk",
+			"_includes/layout.njk",
+		},
+		"php": {
+			"templates/layout.php",
+			"includes/header.php",
+			"layout.php",
+		},
+		"node": {
+			"views/layout.ejs",
+			"views/layout.pug",
+			"views/layouts/main.hbs",
+		},
+	}
+
+	// Try stack-specific layouts first
+	if layouts, ok := layoutsByStack[stack]; ok {
+		for _, layout := range layouts {
+			if _, err := os.Stat(filepath.Join(rootDir, layout)); err == nil {
+				return layout
+			}
+		}
+	}
+
+	// Fallback: try common layouts for any stack
+	commonLayouts := []string{
+		"app/layout.tsx", "app/layout.js",
+		"index.html", "public/index.html",
+		"templates/_layout.twig",
+		"app/views/layouts/application.html.erb",
+	}
+	for _, layout := range commonLayouts {
+		if _, err := os.Stat(filepath.Join(rootDir, layout)); err == nil {
+			return layout
+		}
+	}
+
+	return ""
 }
 
 func checkAlternatePatterns(content, name string) bool {
