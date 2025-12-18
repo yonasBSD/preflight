@@ -98,7 +98,7 @@ preflight checks
 | **IndexNow** | Verifies IndexNow key file for faster search indexing (opt-in) |
 | **LICENSE** | Checks for license file (opt-in, for open source projects) |
 
-## Supported Services (66)
+## Supported Services (70)
 
 Preflight auto-detects and validates configuration for these services:
 
@@ -190,11 +190,81 @@ checks:
   license:
     enabled: false  # opt-in, for open source projects
 
-# Silence specific checks by ID
+# Silence specific checks or services by ID
 ignore:
   - sitemap
   - llmsTxt
+  - google_analytics
 ```
+
+## Ignoring Checks & Services
+
+Silence specific checks or services using `preflight ignore <id>`:
+
+```bash
+preflight ignore sitemap        # Ignore sitemap check
+preflight ignore sentry         # Ignore Sentry service validation
+preflight unignore sitemap      # Re-enable sitemap check
+preflight checks                # List all ignorable IDs
+```
+
+### Ignorable Check IDs
+
+**SEO & Social:**
+`seoMeta`, `canonical`, `structured_data`, `indexNow` (opt-in), `ogTwitter`, `viewport`, `lang`
+
+**Security & Infrastructure:**
+`securityHeaders`, `ssl`, `www_redirect`, `email_auth` (opt-in), `secrets`
+
+**Environment & Health:**
+`envParity`, `healthEndpoint`
+
+**Code Quality & Performance:**
+`vulnerability`, `debug_statements`, `error_pages`, `image_optimization`
+
+**Legal & Compliance:**
+`legal_pages`
+
+**Web Standard Files:**
+`favicon`, `robotsTxt`, `sitemap`, `llmsTxt`, `adsTxt` (opt-in), `humansTxt` (opt-in), `license` (opt-in)
+
+### Ignorable Service IDs (with validation checks)
+
+These services have validation checks that verify proper integration:
+
+**Payments:** `stripe`
+
+**Error Tracking:** `sentry`, `bugsnag`, `rollbar`, `honeybadger`, `datadog`, `newrelic`, `logrocket`
+
+**Email:** `postmark`, `sendgrid`, `mailgun`, `aws_ses`, `resend`
+
+**Analytics:** `plausible`, `fathom`, `google_analytics`, `fullres`, `datafast`, `posthog`, `mixpanel`, `amplitude`, `segment`, `hotjar`
+
+**Infrastructure:** `redis`, `sidekiq`
+
+### Ignorable Service IDs (detection only)
+
+These services are auto-detected but don't have validation checks yet:
+
+**Payments:** `paypal`, `braintree`, `paddle`, `lemonsqueezy`
+
+**Email:** `mailchimp`, `convertkit`, `beehiiv`, `aweber`, `activecampaign`, `campaignmonitor`, `drip`, `klaviyo`, `buttondown`
+
+**Auth:** `auth0`, `clerk`, `workos`, `firebase`, `supabase`
+
+**Communication:** `twilio`, `slack`, `discord`, `intercom`, `crisp`
+
+**Infrastructure:** `rabbitmq`, `elasticsearch`, `convex`
+
+**Storage & CDN:** `aws_s3`, `cloudinary`, `cloudflare`
+
+**Search:** `algolia`
+
+**AI:** `openai`, `anthropic`, `google_ai`, `mistral`, `cohere`, `replicate`, `huggingface`, `grok`, `perplexity`, `together_ai`
+
+**SEO:** `indexnow`
+
+**Cookie Consent:** `cookieconsent`, `cookiebot`, `onetrust`, `termly`, `cookieyes`, `iubenda`
 
 ## Exit Codes
 

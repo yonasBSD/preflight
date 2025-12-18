@@ -65,16 +65,16 @@ func scanForDebugStatements(rootDir string) []string {
 
 	// Debug patterns by language
 	patterns := []debugPattern{
-		// JavaScript/TypeScript
+		// JavaScript/TypeScript (including templates with inline scripts)
 		{
 			pattern:     regexp.MustCompile(`\bconsole\.(log|debug|info|trace|dir|table)\s*\(`),
 			description: "console.log",
-			extensions:  []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte"},
+			extensions:  []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".html", ".htm", ".twig", ".blade.php", ".erb", ".ejs", ".hbs", ".njk", ".astro"},
 		},
 		{
 			pattern:     regexp.MustCompile(`\bdebugger\b`),
 			description: "debugger",
-			extensions:  []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte"},
+			extensions:  []string{".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".html", ".htm", ".twig", ".blade.php", ".erb", ".ejs", ".hbs", ".njk", ".astro"},
 		},
 
 		// Ruby
@@ -359,7 +359,7 @@ func scanForDebugStatements(rootDir string) []string {
 				}
 
 				if p.pattern.MatchString(line) {
-					if !isDevGuarded(lines, lineNum) {
+					if !isDevGuarded(lines, lineNum) && !isInCodeExample(lines, lineNum) {
 						relPath, _ := filepath.Rel(rootDir, path)
 						findings = append(findings, fmt.Sprintf("%s:%d - %s", relPath, lineNum+1, p.description))
 					}
@@ -375,35 +375,116 @@ func scanForDebugStatements(rootDir string) []string {
 
 func isDevGuarded(lines []string, lineNum int) bool {
 	devPatterns := []string{
+		// JavaScript/Node.js
 		"process.env.NODE_ENV",
+		"NODE_ENV",
 		"import.meta.env.DEV",
 		"import.meta.env.MODE",
+		"import.meta.env.PROD",
 		"__DEV__",
 		"isDev",
 		"isDevelopment",
 		"isDebug",
-		"config('app.debug')",
-		"config('app.env')",
-		"APP_DEBUG",
-		"app()->isLocal()",
-		"App::isLocal()",
-		"app.debug",
-		"Rails.env.development",
-		"Rails.env.local",
-		"Rails.env.test",
-		"settings.DEBUG",
-		"DEBUG =",
-		"os.environ",
-		"os.getenv",
-		"devMode",
-		"craft.app.config.general.devMode",
-		"development",
 		"!production",
 		"!== 'production'",
 		"!= 'production'",
+		"=== 'development'",
+		"== 'development'",
+
+		// Vite/Astro
+		"import.meta.env",
+
+		// SvelteKit
+		"from '$app/environment'",
+		"if (dev)",
+		"if(dev)",
+
+		// PHP/Laravel
+		"config('app.debug')",
+		"config('app.env')",
+		"app()->environment",
+		"app()->isLocal()",
+		"App::environment",
+		"App::isLocal()",
+		"env('APP_DEBUG')",
+		"env('APP_ENV')",
+		"APP_DEBUG",
+		"APP_ENV",
+
+		// Craft CMS (Twig)
+		"devMode",
+		"craft.app.config.general.devMode",
+		"{% if devmode",
+		"{% if craft.app.config.general.devmode",
+
+		// Symfony (Twig)
+		"app.debug",
+		"app.environment",
+		"{% if app.debug",
+		"{% if app.environment",
+
+		// Django/Python
+		"settings.DEBUG",
+		"DEBUG =",
+		"DEBUG=",
+		"if settings.DEBUG",
+		"os.environ",
+		"os.getenv",
+		"DJANGO_DEBUG",
+		"FLASK_DEBUG",
+		"FLASK_ENV",
+
+		// Ruby on Rails
+		"Rails.env.development",
+		"Rails.env.local",
+		"Rails.env.test",
+		"Rails.env.development?",
+		"<% if Rails.env.development",
+		"unless Rails.env.production",
+
+		// Go
+		"gin.DebugMode",
+		"GO_ENV",
+		"GIN_MODE",
+
+		// Rust
+		"#[cfg(debug_assertions)]",
+		"cfg!(debug_assertions)",
+		"debug_assertions",
+
+		// ASP.NET/C#
+		"IsDevelopment()",
+		"Environment.IsDevelopment",
+		"#if DEBUG",
+		"ASPNETCORE_ENVIRONMENT",
+
+		// Elixir/Phoenix
+		"Mix.env()",
+		":dev",
+		"Application.get_env",
+
+		// Hugo
+		".Site.IsServer",
+		"hugo.IsServer",
+
+		// Jekyll
+		"jekyll.environment",
+
+		// Blade (Laravel)
+		"@if(config('app.debug'))",
+		"@if(app()->isLocal())",
+		"@env('local')",
+		"@production",
+		"@unless(app()->environment('production'))",
+
+		// General
+		"development",
+		"localhost",
+		"127.0.0.1",
 	}
 
-	start := lineNum - 3
+	// Look up to 10 lines back to find dev guards (handles nested code)
+	start := lineNum - 10
 	if start < 0 {
 		start = 0
 	}
@@ -414,6 +495,87 @@ func isDevGuarded(lines []string, lineNum int) bool {
 			if strings.Contains(lineLower, strings.ToLower(pattern)) {
 				return true
 			}
+		}
+	}
+
+	return false
+}
+
+// isInCodeExample checks if a line is inside a documentation code block or example
+func isInCodeExample(lines []string, lineNum int) bool {
+	// Look for code block markers in surrounding lines
+	start := lineNum - 30
+	if start < 0 {
+		start = 0
+	}
+
+	// Track if we're inside a code block
+	inHeredoc := false
+	heredocMarker := ""
+	inMarkdownCode := false
+	inHTMLCode := false
+
+	// Regex to match Ruby heredocs: <<~WORD, <<-WORD, <<WORD
+	heredocStart := regexp.MustCompile(`<<[~-]?([A-Z_]+)`)
+
+	for i := start; i <= lineNum; i++ {
+		line := lines[i]
+		lineLower := strings.ToLower(line)
+
+		// Ruby heredocs (<<~CODE, <<-CODE, <<CODE, <<~JAVASCRIPT, etc.)
+		if !inHeredoc {
+			if matches := heredocStart.FindStringSubmatch(line); len(matches) > 1 {
+				inHeredoc = true
+				heredocMarker = matches[1]
+			}
+		} else {
+			// End of heredoc - marker alone on a line (possibly indented for <<~)
+			trimmed := strings.TrimSpace(line)
+			if trimmed == heredocMarker {
+				inHeredoc = false
+				heredocMarker = ""
+			}
+		}
+
+		// Markdown code blocks
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inMarkdownCode = !inMarkdownCode
+		}
+
+		// HTML code/pre tags
+		if strings.Contains(lineLower, "<code") || strings.Contains(lineLower, "<pre") {
+			inHTMLCode = true
+		}
+		if strings.Contains(lineLower, "</code>") || strings.Contains(lineLower, "</pre>") {
+			inHTMLCode = false
+		}
+	}
+
+	// If we're at lineNum and inside any code block, return true
+	if inHeredoc || inMarkdownCode || inHTMLCode {
+		return true
+	}
+
+	// Also check if the line itself looks like documentation
+	line := lines[lineNum]
+	lineLower := strings.ToLower(line)
+
+	// Common documentation patterns
+	docPatterns := []string{
+		"// example",
+		"# example",
+		"/* example",
+		"<!-- example",
+		"{# example",
+		"example:",
+		"usage:",
+		"sample:",
+		"demo:",
+	}
+
+	for _, pattern := range docPatterns {
+		if strings.Contains(lineLower, pattern) {
+			return true
 		}
 	}
 

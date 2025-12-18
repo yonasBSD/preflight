@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 )
 
 // FathomCheck verifies Fathom Analytics is properly set up
@@ -66,7 +65,7 @@ func (c FathomCheck) Run(ctx Context) (CheckResult, error) {
 type GoogleAnalyticsCheck struct{}
 
 func (c GoogleAnalyticsCheck) ID() string {
-	return "googleAnalytics"
+	return "google_analytics"
 }
 
 func (c GoogleAnalyticsCheck) Title() string {
@@ -296,9 +295,54 @@ func searchForPatterns(rootDir, stack string, patterns []*regexp.Regexp) bool {
 		}
 	}
 
-	// Also search in src/ and app/ directories
-	searchDirs := []string{"src", "app", "components", "pages"}
-	extensions := []string{".tsx", ".jsx", ".js", ".ts", ".erb", ".html"}
+	// Search in common directories across all stacks
+	searchDirs := []string{
+		".", // root directory
+		// Frontend
+		"src", "app", "components", "pages", "lib",
+		// Monorepo patterns
+		"apps", "packages",
+		// PHP
+		"includes", "partials", "inc",
+		// Templates
+		"templates", "views", "layouts", "_layouts", "_includes",
+		// Public/Static
+		"public", "web", "static", "dist", "www", "_site", "out",
+		// Rails
+		"app/views", "app/views/layouts",
+		// Laravel
+		"resources/views", "resources/views/layouts",
+		// WordPress
+		"wp-content/themes",
+		// Craft CMS
+		"templates/_partials",
+		// Hugo
+		"layouts/_default", "layouts/partials",
+		// SvelteKit
+		"src/routes",
+		// Gatsby
+		"gatsby-browser.js",
+	}
+	extensions := []string{
+		// JavaScript/TypeScript
+		".tsx", ".jsx", ".js", ".ts", ".mjs", ".cjs",
+		// PHP
+		".php",
+		// Template engines
+		".twig", ".blade.php", ".erb", ".haml", ".slim",
+		".ejs", ".pug", ".hbs", ".handlebars", ".mustache",
+		".njk", ".liquid",
+		// HTML
+		".html", ".htm",
+		// Frontend frameworks
+		".vue", ".svelte", ".astro",
+		// Python
+		".py",
+		// Ruby
+		".rb",
+		// Go
+		".go", ".tmpl", ".gohtml",
+	}
 
 	for _, dir := range searchDirs {
 		dirPath := filepath.Join(rootDir, dir)
@@ -308,12 +352,21 @@ func searchForPatterns(rootDir, stack string, patterns []*regexp.Regexp) bool {
 
 		found := false
 		filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || found {
+			if err != nil || found {
 				return nil
 			}
 
-			if strings.Contains(path, "node_modules") {
-				return filepath.SkipDir
+			// Skip common build/dependency directories
+			baseName := filepath.Base(path)
+			if info.IsDir() {
+				if baseName == "node_modules" || baseName == "vendor" ||
+					baseName == ".git" || baseName == "dist" ||
+					baseName == "build" || baseName == "cache" ||
+					baseName == ".next" || baseName == ".turbo" ||
+					baseName == "coverage" || baseName == "__pycache__" {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 
 			ext := filepath.Ext(path)
@@ -353,11 +406,47 @@ func searchForPatterns(rootDir, stack string, patterns []*regexp.Regexp) bool {
 
 func getLayoutFilesForStack(stack string) []string {
 	layouts := map[string][]string{
+		// Backend Frameworks
 		"rails":   {"app/views/layouts/application.html.erb", "app/views/layouts/application.html.haml"},
-		"next":    {"app/layout.tsx", "app/layout.js", "pages/_app.tsx", "pages/_app.js", "pages/_document.tsx", "pages/_document.js"},
-		"node":    {"views/layout.ejs", "views/layout.pug", "views/layout.hbs"},
-		"laravel": {"resources/views/layouts/app.blade.php"},
-		"static":  {"index.html", "public/index.html"},
+		"laravel": {"resources/views/layouts/app.blade.php", "resources/views/app.blade.php"},
+		"django":  {"templates/base.html", "templates/layout.html", "templates/index.html"},
+		"python":  {"templates/base.html", "templates/layout.html", "templates/index.html"},
+		"go":      {"templates/base.html", "templates/layout.html", "views/base.html", "web/templates/base.html"},
+		"rust":    {"templates/base.html", "templates/layout.html"},
+		"node":    {"views/layout.ejs", "views/layout.pug", "views/layout.hbs", "views/layouts/main.hbs"},
+
+		// Frontend Frameworks
+		"next":    {"app/layout.tsx", "app/layout.js", "pages/_app.tsx", "pages/_app.js", "pages/_document.tsx", "pages/_document.js", "src/app/layout.tsx"},
+		"react":   {"src/App.tsx", "src/App.jsx", "src/App.js", "src/index.tsx", "src/index.jsx", "public/index.html"},
+		"vue":     {"src/App.vue", "src/main.ts", "src/main.js", "index.html", "public/index.html"},
+		"vite":    {"index.html", "src/App.tsx", "src/App.jsx", "src/App.vue", "src/App.svelte"},
+		"svelte":  {"src/App.svelte", "src/routes/+layout.svelte", "src/app.html"},
+		"angular": {"src/index.html", "src/app/app.component.ts", "src/app/app.component.html"},
+
+		// Traditional CMS
+		"wordpress": {"wp-content/themes/theme/header.php", "wp-content/themes/theme/functions.php", "header.php"},
+		"craft":     {"templates/_layout.twig", "templates/_layout.html", "templates/_partials/head.twig"},
+		"drupal":    {"themes/custom/theme/templates/html.html.twig", "web/themes/custom/theme/templates/html.html.twig"},
+		"ghost":     {"content/themes/casper/default.hbs", "default.hbs"},
+
+		// Static Site Generators
+		"hugo":     {"layouts/_default/baseof.html", "themes/theme/layouts/_default/baseof.html", "layouts/partials/head.html"},
+		"jekyll":   {"_layouts/default.html", "_includes/head.html", "_includes/header.html"},
+		"gatsby":   {"src/components/layout.js", "src/components/layout.tsx", "src/html.js", "gatsby-browser.js"},
+		"eleventy": {"_includes/layout.njk", "_includes/base.njk", "_includes/layout.liquid", "src/_includes/layout.njk"},
+		"astro":    {"src/layouts/Layout.astro", "src/layouts/BaseLayout.astro", "src/components/Head.astro"},
+
+		// Headless CMS (frontend detection)
+		"strapi":     {"src/index.js", "config/server.js"},
+		"sanity":     {"sanity.config.ts", "sanity.config.js"},
+		"contentful": {"src/templates/page.js", "src/App.js"},
+		"prismic":    {"src/components/Layout.js", "slicemachine.config.json"},
+
+		// Generic PHP
+		"php": {"header.php", "includes/header.php", "partials/header.php", "templates/header.php", "inc/header.php"},
+
+		// Static
+		"static": {"index.html", "public/index.html", "dist/index.html"},
 	}
 
 	if files, ok := layouts[stack]; ok {

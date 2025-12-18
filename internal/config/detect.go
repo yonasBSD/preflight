@@ -646,25 +646,8 @@ func detectServicesFromContent(content string, services map[string]bool, lang st
 		services["indexnow"] = true
 	}
 
-	// Cookie Consent
-	if strings.Contains(content, "cookieconsent") || strings.Contains(content, "cookie-consent") {
-		services["cookieconsent"] = true
-	}
-	if strings.Contains(content, "cookiebot") {
-		services["cookiebot"] = true
-	}
-	if strings.Contains(content, "onetrust") || strings.Contains(content, "optanon") {
-		services["onetrust"] = true
-	}
-	if strings.Contains(content, "termly") {
-		services["termly"] = true
-	}
-	if strings.Contains(content, "cookieyes") || strings.Contains(content, "cookie-law-info") {
-		services["cookieyes"] = true
-	}
-	if strings.Contains(content, "iubenda") {
-		services["iubenda"] = true
-	}
+	// Cookie Consent - require specific SDK/script patterns, not just mentions
+	// These are handled by detectServicesFromCode with proper regex patterns
 }
 
 func detectServicesFromEnv(rootDir string, services map[string]bool) map[string]bool {
@@ -905,13 +888,13 @@ func detectAnalyticsScripts(rootDir string, services map[string]bool) {
 		// SEO - require actual API usage, not just the word
 		"indexnow": regexp.MustCompile(`(?i)api\.indexnow\.org|indexnow\.org/key|indexnow-js|indexnow-sdk`),
 
-		// Cookie Consent - require script URLs or SDK
-		"cookieconsent": regexp.MustCompile(`(?i)cdn\.jsdelivr\.net.*cookieconsent|cookieconsent\.js|osano.*cookieconsent|CookieConsent\.run`),
-		"cookiebot":     regexp.MustCompile(`(?i)consent\.cookiebot\.com|Cookiebot|cookiebot\.js`),
-		"onetrust":      regexp.MustCompile(`(?i)cdn\.cookielaw\.org|optanon|OneTrust|onetrust\.com`),
-		"termly":        regexp.MustCompile(`(?i)app\.termly\.io|termly\.js|Termly\.initialize`),
-		"cookieyes":     regexp.MustCompile(`(?i)cdn-cookieyes\.com|cookieyes\.com|CookieYes`),
-		"iubenda":       regexp.MustCompile(`(?i)cdn\.iubenda\.com|iubenda\.com/cs|_iub\.csConfiguration`),
+		// Cookie Consent - require script URLs or SDK initialization
+		"cookieconsent": regexp.MustCompile(`cdn\.jsdelivr\.net.*cookieconsent|cookieconsent\.min\.js|osano.*cookieconsent|CookieConsent\.run\(|new CookieConsent\(`),
+		"cookiebot":     regexp.MustCompile(`consent\.cookiebot\.com|Cookiebot\.consent|window\.Cookiebot`),
+		"onetrust":      regexp.MustCompile(`cdn\.cookielaw\.org|optanon-wrapper|OneTrust\.Init|window\.OneTrust`),
+		"termly":        regexp.MustCompile(`app\.termly\.io|termly\.min\.js|Termly\.initialize\(`),
+		"cookieyes":     regexp.MustCompile(`cdn-cookieyes\.com|cookieyes\.min\.js`),
+		"iubenda":       regexp.MustCompile(`cdn\.iubenda\.com|_iub\.csConfiguration`),
 	}
 
 	// Regex to find script src URLs

@@ -114,12 +114,6 @@ func hasViewportMeta(content, stack string) bool {
 		return true
 	}
 
-	// Template variables that likely include viewport
-	templateViewport := regexp.MustCompile(`(?i)viewport`)
-	if templateViewport.MatchString(content) {
-		return true
-	}
-
 	return false
 }
 

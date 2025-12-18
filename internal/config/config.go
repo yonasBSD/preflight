@@ -31,8 +31,6 @@ type ChecksConfig struct {
 	HealthEndpoint *HealthEndpointConfig `yaml:"healthEndpoint,omitempty"`
 	StripeWebhook  *StripeWebhookConfig  `yaml:"stripeWebhook,omitempty"`
 	SEOMeta        *SEOMetaConfig        `yaml:"seoMeta,omitempty"`
-	Sentry         *SentryConfig         `yaml:"sentry,omitempty"`
-	Plausible      *PlausibleConfig      `yaml:"plausible,omitempty"`
 	Security       *SecurityConfig       `yaml:"security,omitempty"`
 	Secrets        *SecretsConfig        `yaml:"secrets,omitempty"`
 	AdsTxt         *AdsTxtConfig         `yaml:"adsTxt,omitempty"`
@@ -40,7 +38,6 @@ type ChecksConfig struct {
 	IndexNow       *IndexNowConfig       `yaml:"indexNow,omitempty"`
 	EmailAuth      *EmailAuthConfig      `yaml:"emailAuth,omitempty"`
 	HumansTxt      *HumansTxtConfig      `yaml:"humansTxt,omitempty"`
-	CookieConsent  *CookieConsentConfig  `yaml:"cookieConsent,omitempty"`
 }
 
 type EnvParityConfig struct {
@@ -62,14 +59,6 @@ type StripeWebhookConfig struct {
 type SEOMetaConfig struct {
 	Enabled    bool   `yaml:"enabled"`
 	MainLayout string `yaml:"mainLayout"`
-}
-
-type SentryConfig struct {
-	Enabled bool `yaml:"enabled"`
-}
-
-type PlausibleConfig struct {
-	Enabled bool `yaml:"enabled"`
 }
 
 type SecurityConfig struct {
@@ -98,10 +87,6 @@ type EmailAuthConfig struct {
 }
 
 type HumansTxtConfig struct {
-	Enabled bool `yaml:"enabled"`
-}
-
-type CookieConsentConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 

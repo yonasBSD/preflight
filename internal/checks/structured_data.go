@@ -47,14 +47,31 @@ func (c StructuredDataCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	// If no SEOMeta configured, return skipped status
-	if cfg == nil || cfg.MainLayout == "" {
+	// Search the codebase for structured data patterns
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`<script[^>]+type=["']application/ld\+json["']`),
+		regexp.MustCompile(`["']@context["']\s*:\s*["']https?://schema\.org`),
+		regexp.MustCompile(`["']@type["']\s*:\s*["'](Organization|WebSite|Article|Product|LocalBusiness|SoftwareApplication)`),
+	}
+
+	if searchForPatterns(ctx.RootDir, ctx.Config.Stack, patterns) {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  "Check skipped (no main layout set)",
+			Message:  "Schema.org structured data found",
+		}, nil
+	}
+
+	// If no SEOMeta configured, return info status (not a warning for sites that don't need it)
+	if cfg == nil || !cfg.Enabled {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "No structured data found (SEO check not enabled)",
 		}, nil
 	}
 
@@ -81,8 +98,9 @@ func hasStructuredData(content, stack string) bool {
 		return true
 	}
 
-	// Next.js generateMetadata with JSON-LD
-	nextJSJsonLD := regexp.MustCompile(`(?i)application/ld\+json|jsonLd|json-ld`)
+	// Next.js/React JSON-LD patterns (variable names, imports)
+	// Match: jsonLd, JsonLd, json_ld, or import from json-ld packages
+	nextJSJsonLD := regexp.MustCompile(`(?i)jsonLd\s*[=:{]|json_ld\s*[=:{]|from\s+["'].*json-ld|import.*JsonLd`)
 	if nextJSJsonLD.MatchString(content) {
 		return true
 	}
@@ -100,13 +118,13 @@ func hasStructuredData(content, stack string) bool {
 	}
 
 	// Rails structured_data helper or schema.org gem
-	railsSchema := regexp.MustCompile(`(?i)structured_data|json_ld|schemaOrg`)
+	railsSchema := regexp.MustCompile(`(?i)structured_data\s*do|json_ld_tag|render.*schema`)
 	if railsSchema.MatchString(content) {
 		return true
 	}
 
-	// Hugo schema partial
-	hugoSchema := regexp.MustCompile(`(?i)schema\.html|partial.*schema`)
+	// Hugo schema partial (file include patterns)
+	hugoSchema := regexp.MustCompile(`(?i)partial\s+["'].*schema|include\s+["'].*schema`)
 	if hugoSchema.MatchString(content) {
 		return true
 	}

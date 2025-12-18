@@ -119,9 +119,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Ask about humans.txt
 	checkHumansTxt := promptYesNo(reader, "Got a humans.txt crediting the team?", false)
 
-	// Ask about cookie consent
-	checkCookieConsent := promptYesNo(reader, "Does this site use cookies requiring user consent (GDPR/CCPA)?", false)
-
 	// Handle IndexNow - user already confirmed/declined in services section
 	var indexNowKey string
 	indexNowConfirmed := confirmedServices["indexnow"].Declared
@@ -159,6 +156,19 @@ func runInit(cmd *cobra.Command, args []string) error {
 		delete(confirmedServices, "indexnow")
 	}
 
+	// Build full services map with all services (declared: true or false)
+	allServices := make(map[string]config.ServiceConfig)
+	for _, svc := range config.AllServices {
+		if svc == "indexnow" {
+			continue // handled in checks.indexNow
+		}
+		if _, confirmed := confirmedServices[svc]; confirmed {
+			allServices[svc] = config.ServiceConfig{Declared: true}
+		} else {
+			allServices[svc] = config.ServiceConfig{Declared: false}
+		}
+	}
+
 	// Build config
 	cfg := config.PreflightConfig{
 		ProjectName: projectName,
@@ -167,8 +177,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 			Staging:    stagingURL,
 			Production: productionURL,
 		},
-		Services: confirmedServices,
-		Checks:   buildDefaultChecks(cwd, stack, confirmedServices, productionURL, hasLicense, hasAds, indexNowKey, checkEmailAuth, checkHumansTxt, checkCookieConsent),
+		Services: allServices,
+		Checks:   buildDefaultChecks(cwd, stack, allServices, productionURL, hasLicense, hasAds, indexNowKey, checkEmailAuth, checkHumansTxt),
 	}
 
 	// Write config file
@@ -283,7 +293,7 @@ func getDefaultProjectName(cwd string) string {
 	return "my-project"
 }
 
-func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceConfig, productionURL string, hasLicense bool, hasAds bool, indexNowKey string, checkEmailAuth bool, checkHumansTxt bool, checkCookieConsent bool) config.ChecksConfig {
+func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceConfig, productionURL string, hasLicense bool, hasAds bool, indexNowKey string, checkEmailAuth bool, checkHumansTxt bool) config.ChecksConfig {
 	checks := config.ChecksConfig{
 		EnvParity: &config.EnvParityConfig{
 			Enabled:     true,
@@ -293,12 +303,6 @@ func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceCon
 		HealthEndpoint: &config.HealthEndpointConfig{
 			Enabled: stackNeedsHealthEndpoint(stack),
 			Path:    "/health",
-		},
-		Sentry: &config.SentryConfig{
-			Enabled: services["sentry"].Declared,
-		},
-		Plausible: &config.PlausibleConfig{
-			Enabled: services["plausible"].Declared,
 		},
 		Security: &config.SecurityConfig{
 			Enabled: productionURL != "",
@@ -321,9 +325,6 @@ func buildDefaultChecks(cwd, stack string, services map[string]config.ServiceCon
 		},
 		HumansTxt: &config.HumansTxtConfig{
 			Enabled: checkHumansTxt,
-		},
-		CookieConsent: &config.CookieConsentConfig{
-			Enabled: checkCookieConsent,
 		},
 	}
 

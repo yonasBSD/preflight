@@ -64,77 +64,113 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 
 	// Map check IDs to display categories
 	categoryMap := map[string]string{
-		"envParity":       "ENV",
-		"healthEndpoint":  "HEALTH",
-		"stripe":          "PAYMENTS",
-		"sentry":          "ERRORS",
-		"bugsnag":         "ERRORS",
-		"rollbar":         "ERRORS",
-		"honeybadger":     "ERRORS",
-		"datadog":         "ERRORS",
-		"newrelic":        "ERRORS",
-		"logrocket":       "ERRORS",
-		"plausible":       "ANALYTICS",
-		"fathom":          "ANALYTICS",
-		"googleAnalytics": "ANALYTICS",
-		"mixpanel":        "ANALYTICS",
-		"amplitude":       "ANALYTICS",
-		"segment":         "ANALYTICS",
-		"hotjar":          "ANALYTICS",
-		"redis":           "INFRA",
-		"sidekiq":         "JOBS",
-		"rabbitmq":        "JOBS",
-		"seoMeta":         "SEO",
-		"ogTwitter":       "SOCIAL",
-		"securityHeaders": "SECURITY",
-		"ssl":             "SSL",
-		"secrets":         "SECRETS",
-		"openai":          "AI",
-		"anthropic":       "AI",
-		"google_ai":       "AI",
-		"auth0":           "AUTH",
-		"clerk":           "AUTH",
-		"firebase":        "INFRA",
-		"supabase":        "INFRA",
-		"postmark":        "EMAIL",
-		"sendgrid":        "EMAIL",
-		"mailgun":         "EMAIL",
-		"aws_ses":         "EMAIL",
-		"resend":          "EMAIL",
-		"aws_s3":          "STORAGE",
-		"cloudinary":      "STORAGE",
-		"algolia":         "SEARCH",
-		"elasticsearch":   "SEARCH",
-		"slack":           "NOTIFY",
-		"discord":         "NOTIFY",
-		"twilio":          "NOTIFY",
-		"intercom":        "CHAT",
-		"crisp":           "CHAT",
-		"favicon":         "ICONS",
-		"robotsTxt":       "FILES",
-		"sitemap":         "FILES",
-		"llmsTxt":         "FILES",
-		"adsTxt":          "FILES",
-		"license":         "LICENSE",
-		"vulnerability":     "DEPS",
-		"indexNow":          "INDEXNOW",
-		"canonical":         "SEO",
-		"viewport":          "MOBILE",
-		"lang":              "LANG",
-		"error_pages":       "PAGES",
-		"debug_statements":  "DEBUG",
+		"envParity":            "ENV",
+		"healthEndpoint":       "HEALTH",
+		"seoMeta":              "SEO",
+		"ogTwitter":            "SOCIAL",
+		"securityHeaders":      "SECURITY",
+		"ssl":                  "SSL",
+		"secrets":              "SECRETS",
+		"favicon":              "ICONS",
+		"robotsTxt":            "FILES",
+		"sitemap":              "FILES",
+		"llmsTxt":              "FILES",
+		"adsTxt":               "FILES",
+		"humansTxt":            "FILES",
+		"license":              "LICENSE",
+		"vulnerability":        "DEPS",
+		"indexNow":             "INDEXNOW",
+		"canonical":            "SEO",
+		"viewport":             "MOBILE",
+		"lang":                 "LANG",
+		"error_pages":          "PAGES",
+		"debug_statements":     "DEBUG",
 		"structured_data":      "SEO",
 		"image_optimization":   "PERF",
 		"email_auth":           "EMAIL",
-		"humansTxt":            "FILES",
 		"www_redirect":         "INFRA",
 		"legal_pages":          "LEGAL",
-		"cookie_consent":       "LEGAL",
 	}
 
-	// Print results
-	for i, r := range results {
-		category := categoryMap[r.ID]
+	// Service check IDs - these will be grouped separately
+	serviceCheckIDs := map[string]bool{
+		// Payments
+		"stripe": true, "paypal": true, "braintree": true, "paddle": true, "lemonsqueezy": true,
+		// Error Tracking
+		"sentry": true, "bugsnag": true, "rollbar": true, "honeybadger": true, "datadog": true, "newrelic": true, "logrocket": true,
+		// Email
+		"postmark": true, "sendgrid": true, "mailgun": true, "aws_ses": true, "resend": true,
+		"mailchimp": true, "convertkit": true, "beehiiv": true, "aweber": true, "activecampaign": true,
+		"campaignmonitor": true, "drip": true, "klaviyo": true, "buttondown": true,
+		// Analytics
+		"plausible": true, "fathom": true, "google_analytics": true, "fullres": true, "datafast": true,
+		"posthog": true, "mixpanel": true, "amplitude": true, "segment": true, "hotjar": true,
+		// Auth
+		"auth0": true, "clerk": true, "workos": true, "firebase": true, "supabase": true,
+		// Communication
+		"twilio": true, "slack": true, "discord": true, "intercom": true, "crisp": true,
+		// Infrastructure
+		"redis": true, "sidekiq": true, "rabbitmq": true, "elasticsearch": true, "convex": true,
+		// Storage & CDN
+		"aws_s3": true, "cloudinary": true, "cloudflare": true,
+		// Search
+		"algolia": true,
+		// AI
+		"openai": true, "anthropic": true, "google_ai": true, "mistral": true, "cohere": true,
+		"replicate": true, "huggingface": true, "grok": true, "perplexity": true, "together_ai": true,
+		// Cookie Consent
+		"cookieconsent": true, "cookiebot": true, "onetrust": true, "termly": true, "cookieyes": true, "iubenda": true,
+		// SEO
+		"indexNow": true,
+	}
+
+	// Service category mapping
+	serviceCategoryMap := map[string]string{
+		// Payments
+		"stripe": "PAYMENTS", "paypal": "PAYMENTS", "braintree": "PAYMENTS", "paddle": "PAYMENTS", "lemonsqueezy": "PAYMENTS",
+		// Error Tracking
+		"sentry": "ERRORS", "bugsnag": "ERRORS", "rollbar": "ERRORS", "honeybadger": "ERRORS",
+		"datadog": "ERRORS", "newrelic": "ERRORS", "logrocket": "ERRORS",
+		// Email
+		"postmark": "EMAIL", "sendgrid": "EMAIL", "mailgun": "EMAIL", "aws_ses": "EMAIL", "resend": "EMAIL",
+		"mailchimp": "EMAIL", "convertkit": "EMAIL", "beehiiv": "EMAIL", "aweber": "EMAIL",
+		"activecampaign": "EMAIL", "campaignmonitor": "EMAIL", "drip": "EMAIL", "klaviyo": "EMAIL", "buttondown": "EMAIL",
+		// Analytics
+		"plausible": "ANALYTICS", "fathom": "ANALYTICS", "google_analytics": "ANALYTICS", "fullres": "ANALYTICS", "datafast": "ANALYTICS",
+		"posthog": "ANALYTICS", "mixpanel": "ANALYTICS", "amplitude": "ANALYTICS", "segment": "ANALYTICS", "hotjar": "ANALYTICS",
+		// Auth
+		"auth0": "AUTH", "clerk": "AUTH", "workos": "AUTH", "firebase": "AUTH", "supabase": "AUTH",
+		// Communication
+		"twilio": "NOTIFY", "slack": "NOTIFY", "discord": "NOTIFY", "intercom": "CHAT", "crisp": "CHAT",
+		// Infrastructure
+		"redis": "INFRA", "sidekiq": "JOBS", "rabbitmq": "JOBS", "elasticsearch": "SEARCH", "convex": "INFRA",
+		// Storage & CDN
+		"aws_s3": "STORAGE", "cloudinary": "STORAGE", "cloudflare": "INFRA",
+		// Search
+		"algolia": "SEARCH",
+		// AI
+		"openai": "AI", "anthropic": "AI", "google_ai": "AI", "mistral": "AI", "cohere": "AI",
+		"replicate": "AI", "huggingface": "AI", "grok": "AI", "perplexity": "AI", "together_ai": "AI",
+		// Cookie Consent
+		"cookieconsent": "LEGAL", "cookiebot": "LEGAL", "onetrust": "LEGAL", "termly": "LEGAL", "cookieyes": "LEGAL", "iubenda": "LEGAL",
+		// SEO
+		"indexNow": "INDEXNOW",
+	}
+
+	// Separate results into non-service checks and service checks
+	var coreResults []checks.CheckResult
+	var serviceResults []checks.CheckResult
+	for _, r := range results {
+		if serviceCheckIDs[r.ID] {
+			serviceResults = append(serviceResults, r)
+		} else {
+			coreResults = append(coreResults, r)
+		}
+	}
+
+	// Helper function to print a check result
+	printResult := func(r checks.CheckResult, isLast bool, catMap map[string]string) {
+		category := catMap[r.ID]
 		if category == "" {
 			category = strings.ToUpper(r.ID)
 		}
@@ -159,8 +195,30 @@ func (h HumanOutputter) Output(projectName string, results []checks.CheckResult)
 		}
 
 		// Add subtle divider between checks (except after the last one)
-		if i < len(results)-1 {
+		if !isLast {
 			fmt.Printf("  %s· · · · · · · · · · · · · · · · · · · · · · · · · · · ·%s\n", colorGray, colorReset)
+		}
+	}
+
+	// Print core check results
+	for i, r := range coreResults {
+		isLast := i == len(coreResults)-1 && len(serviceResults) == 0
+		printResult(r, isLast, categoryMap)
+	}
+
+	// Print service check results under a heading
+	if len(serviceResults) > 0 {
+		if len(coreResults) > 0 {
+			fmt.Println()
+			fmt.Printf("  %s────────────────────────────────────────────────────────%s\n", colorGray, colorReset)
+		}
+		fmt.Println()
+		fmt.Printf("%s%s 🔌 Checked Services%s\n", colorBold, colorCyan, colorReset)
+		fmt.Println()
+
+		for i, r := range serviceResults {
+			isLast := i == len(serviceResults)-1
+			printResult(r, isLast, serviceCategoryMap)
 		}
 	}
 
