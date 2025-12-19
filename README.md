@@ -232,33 +232,25 @@ preflight checks                # List all ignorable IDs
 **Web Standard Files:**
 `favicon`, `robotsTxt`, `sitemap`, `llmsTxt`, `adsTxt` (opt-in), `humansTxt` (opt-in), `license` (opt-in)
 
-### Ignorable Service IDs (with validation checks)
+### Ignorable Service IDs
 
-These services have validation checks that verify proper integration:
+All services have validation checks that verify proper integration (env vars, SDK patterns, config files):
 
-**Payments:** `stripe`
+**Payments:** `stripe`, `paypal`, `braintree`, `paddle`, `lemonsqueezy`
 
 **Error Tracking:** `sentry`, `bugsnag`, `rollbar`, `honeybadger`, `datadog`, `newrelic`, `logrocket`
 
-**Email:** `postmark`, `sendgrid`, `mailgun`, `aws_ses`, `resend`
+**Transactional Email:** `postmark`, `sendgrid`, `mailgun`, `aws_ses`, `resend`
+
+**Email Marketing:** `mailchimp`, `convertkit`, `beehiiv`, `aweber`, `activecampaign`, `campaignmonitor`, `drip`, `klaviyo`, `buttondown`
 
 **Analytics:** `plausible`, `fathom`, `google_analytics`, `fullres`, `datafast`, `posthog`, `mixpanel`, `amplitude`, `segment`, `hotjar`
-
-**Infrastructure:** `redis`, `sidekiq`
-
-### Ignorable Service IDs (detection only)
-
-These services are auto-detected but don't have validation checks yet:
-
-**Payments:** `paypal`, `braintree`, `paddle`, `lemonsqueezy`
-
-**Email:** `mailchimp`, `convertkit`, `beehiiv`, `aweber`, `activecampaign`, `campaignmonitor`, `drip`, `klaviyo`, `buttondown`
 
 **Auth:** `auth0`, `clerk`, `workos`, `firebase`, `supabase`
 
 **Communication:** `twilio`, `slack`, `discord`, `intercom`, `crisp`
 
-**Infrastructure:** `rabbitmq`, `elasticsearch`, `convex`
+**Infrastructure:** `redis`, `sidekiq`, `rabbitmq`, `elasticsearch`, `convex`
 
 **Storage & CDN:** `aws_s3`, `cloudinary`, `cloudflare`
 
