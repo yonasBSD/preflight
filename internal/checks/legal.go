@@ -199,7 +199,8 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
-	// Flexible search: walk common source directories for any file containing "privacy" or "terms"
+	// Flexible search: walk common source directories for legal page files
+	// Only match actual page files, not utilities like "privacy-settings.tsx" or "usePrivacy.ts"
 	if !hasPrivacy || !hasTerms {
 		flexSearchDirs := []string{"app", "src", "pages", "views", "templates", "content"}
 		for _, dir := range flexSearchDirs {
@@ -211,7 +212,7 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 				continue
 			}
 			filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-				if err != nil || hasPrivacy && hasTerms {
+				if err != nil || (hasPrivacy && hasTerms) {
 					return nil
 				}
 				// Skip node_modules, vendor, etc.
@@ -222,18 +223,49 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 					}
 					return nil
 				}
+
 				nameLower := strings.ToLower(info.Name())
 				relPath, _ := filepath.Rel(ctx.RootDir, path)
-				// Check for privacy-related files
-				if !hasPrivacy && strings.Contains(nameLower, "privacy") {
-					hasPrivacy = true
-					privacyPath = relPath
+				parentDir := strings.ToLower(filepath.Base(filepath.Dir(path)))
+
+				// For Next.js app router: page.tsx in a privacy/terms directory
+				isPageFile := strings.HasPrefix(nameLower, "page.")
+				if isPageFile {
+					if !hasPrivacy && strings.Contains(parentDir, "privacy") {
+						hasPrivacy = true
+						privacyPath = relPath
+					}
+					if !hasTerms && (strings.Contains(parentDir, "terms") || parentDir == "tos" || parentDir == "eula") {
+						hasTerms = true
+						termsPath = relPath
+					}
+					return nil
 				}
-				// Check for terms-related files (but not "terms" in random words)
-				if !hasTerms && (strings.Contains(nameLower, "terms") || nameLower == "tos.tsx" || nameLower == "tos.jsx" || nameLower == "tos.ts" || nameLower == "tos.js" || nameLower == "eula.tsx" || nameLower == "eula.jsx") {
-					hasTerms = true
-					termsPath = relPath
+
+				// For other frameworks: match files that ARE the page (not containing the word)
+				// e.g., "privacy.tsx", "privacy-policy.html", "terms.vue" - but NOT "privacy-settings.tsx"
+				nameNoExt := strings.TrimSuffix(nameLower, filepath.Ext(nameLower))
+
+				// Privacy page patterns (exact matches or specific suffixes)
+				privacyPageNames := []string{"privacy", "privacy-policy", "privacy_policy", "privacypolicy", "privacy-notice", "privacy-statement"}
+				for _, p := range privacyPageNames {
+					if !hasPrivacy && nameNoExt == p {
+						hasPrivacy = true
+						privacyPath = relPath
+						break
+					}
 				}
+
+				// Terms page patterns
+				termsPageNames := []string{"terms", "terms-of-service", "terms_of_service", "termsofservice", "tos", "terms-and-conditions", "terms-conditions", "eula"}
+				for _, t := range termsPageNames {
+					if !hasTerms && nameNoExt == t {
+						hasTerms = true
+						termsPath = relPath
+						break
+					}
+				}
+
 				return nil
 			})
 		}
