@@ -188,7 +188,12 @@ func getUpgradeCommand() string {
 		return "curl -sSL https://preflight.sh/install.sh | sh"
 	}
 
-	path := strings.ToLower(executable)
+	// Resolve symlinks to detect the actual install method
+	resolved, err := filepath.EvalSymlinks(executable)
+	if err != nil {
+		resolved = executable
+	}
+	path := strings.ToLower(resolved)
 
 	if strings.Contains(path, "homebrew") || strings.Contains(path, "cellar") || strings.Contains(path, "/opt/homebrew") {
 		return "brew upgrade preflightsh/preflight/preflight"
