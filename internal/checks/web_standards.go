@@ -1095,6 +1095,196 @@ func (c IndexNowCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
+	// Check for dynamic IndexNow implementations (served via routes, not static files)
+
+	// Check for IndexNow service/controller/job files across backend frameworks
+	dynamicIndexNowPaths := []string{
+		// Ruby on Rails
+		"app/services/index_now_service.rb",
+		"app/services/indexnow_service.rb",
+		"app/jobs/index_now_job.rb",
+		"app/jobs/indexnow_job.rb",
+		// Laravel
+		"app/Services/IndexNowService.php",
+		"app/Http/Controllers/IndexNowController.php",
+		"app/Jobs/IndexNowJob.php",
+		// Django
+		"indexnow.py",
+		// Phoenix/Elixir
+		"lib/*/services/index_now.ex",
+		// Go
+		"handlers/indexnow.go", "internal/handlers/indexnow.go",
+		// Node.js/Express
+		"routes/indexnow.js", "routes/indexnow.ts",
+		"src/routes/indexnow.js", "src/routes/indexnow.ts",
+		"src/services/indexnow.js", "src/services/indexnow.ts",
+		// ASP.NET
+		"Controllers/IndexNowController.cs",
+		"Services/IndexNowService.cs",
+	}
+
+	for _, path := range dynamicIndexNowPaths {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		if _, err := os.Stat(fullPath); err == nil {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "IndexNow served dynamically via " + path,
+			}, nil
+		}
+	}
+
+	// Check for IndexNow references in controller files (e.g., Rails SitemapsController serving the key)
+	controllerDirs := []string{
+		"app/controllers",        // Rails
+		"app/Http/Controllers",   // Laravel
+	}
+	for _, dir := range controllerDirs {
+		dirPath := filepath.Join(ctx.RootDir, dir)
+		entries, err := os.ReadDir(dirPath)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			filePath := filepath.Join(dirPath, entry.Name())
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				continue
+			}
+			contentStr := strings.ToLower(string(content))
+			if strings.Contains(contentStr, "indexnow") || strings.Contains(contentStr, "index_now") {
+				relPath := dir + "/" + entry.Name()
+				return CheckResult{
+					ID:       c.ID(),
+					Title:    c.Title(),
+					Severity: SeverityInfo,
+					Passed:   true,
+					Message:  "IndexNow served dynamically via " + relPath,
+				}, nil
+			}
+		}
+	}
+
+	// Check for IndexNow in route config files
+	routeFiles := []string{
+		"config/routes.rb",          // Rails
+		"routes/web.php",            // Laravel
+		"urls.py", "config/urls.py", // Django
+	}
+	for _, path := range routeFiles {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			continue
+		}
+		contentStr := strings.ToLower(string(content))
+		if strings.Contains(contentStr, "indexnow") || strings.Contains(contentStr, "index_now") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "IndexNow route configured in " + path,
+			}, nil
+		}
+	}
+
+	// Check for IndexNow key in env files (indicates dynamic serving)
+	envFiles := []string{".env", ".env.example", ".env.development", ".env.production", ".env.local"}
+	for _, path := range envFiles {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(content), "INDEXNOW_KEY") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "IndexNow key configured via environment variable in " + path,
+			}, nil
+		}
+	}
+
+	// Check for dynamic IndexNow in JS/TS framework route files
+	jsIndexNowPaths := []string{
+		// Next.js App Router
+		"app/[key].txt/route.ts", "app/[key].txt/route.js",
+		"src/app/[key].txt/route.ts", "src/app/[key].txt/route.js",
+		"app/api/indexnow/route.ts", "app/api/indexnow/route.js",
+		"src/app/api/indexnow/route.ts", "src/app/api/indexnow/route.js",
+		// SvelteKit
+		"src/routes/[key].txt/+server.ts", "src/routes/[key].txt/+server.js",
+		// Nuxt
+		"server/routes/[key].txt.ts", "server/routes/[key].txt.js",
+		"server/api/indexnow.ts", "server/api/indexnow.js",
+		// Remix
+		"app/routes/$key[.]txt.ts", "app/routes/$key[.]txt.tsx",
+	}
+
+	for _, path := range jsIndexNowPaths {
+		fullPath := filepath.Join(ctx.RootDir, path)
+		if _, err := os.Stat(fullPath); err == nil {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "IndexNow served dynamically via " + path,
+			}, nil
+		}
+	}
+
+	// Check for IndexNow packages in dependency files
+	// Gemfile (Rails)
+	gemfilePath := filepath.Join(ctx.RootDir, "Gemfile")
+	if content, err := os.ReadFile(gemfilePath); err == nil {
+		if strings.Contains(string(content), "indexnow") || strings.Contains(string(content), "index_now") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "IndexNow configured via Ruby gem",
+			}, nil
+		}
+	}
+
+	// package.json (Node.js)
+	pkgPath := filepath.Join(ctx.RootDir, "package.json")
+	if content, err := os.ReadFile(pkgPath); err == nil {
+		if strings.Contains(string(content), "indexnow") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "IndexNow configured via npm package",
+			}, nil
+		}
+	}
+
+	// composer.json (PHP/Laravel)
+	composerPath := filepath.Join(ctx.RootDir, "composer.json")
+	if content, err := os.ReadFile(composerPath); err == nil {
+		if strings.Contains(string(content), "indexnow") {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "IndexNow configured via Composer package",
+			}, nil
+		}
+	}
+
 	if key == "" {
 		return CheckResult{
 			ID:       c.ID(),
@@ -1104,6 +1294,7 @@ func (c IndexNowCheck) Run(ctx Context) (CheckResult, error) {
 			Message:  "IndexNow enabled but no key file found",
 			Suggestions: []string{
 				"Create a 32-character hex key file (e.g., abc123...def.txt) in your web root",
+				"Or serve it dynamically via a controller/route",
 			},
 		}, nil
 	}
@@ -1117,6 +1308,7 @@ func (c IndexNowCheck) Run(ctx Context) (CheckResult, error) {
 		Suggestions: []string{
 			fmt.Sprintf("Create %s.txt in your web root containing: %s", key, key),
 			"Or place it at .well-known/" + key + ".txt",
+			"Or serve it dynamically via a controller/route",
 		},
 	}, nil
 }
