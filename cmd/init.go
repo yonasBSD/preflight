@@ -551,6 +551,7 @@ func formatServiceName(svc string) string {
 		// Analytics
 		"plausible":        "Plausible Analytics",
 		"fathom":           "Fathom Analytics",
+		"umami":            "Umami Analytics",
 		"fullres":          "Fullres Analytics",
 		"datafast":         "Datafa.st Analytics",
 		"google_analytics": "Google Analytics",
