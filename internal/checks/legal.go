@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/preflightsh/preflight/internal/netutil"
 )
 
 type LegalPagesCheck struct{}
@@ -31,13 +33,13 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 	}
 
 	if baseURL != "" {
-		// Use a separate client that doesn't follow redirects so we can detect 3xx as "page exists".
-		// We intentionally don't use ctx.Client here because we need different redirect behavior.
-		client := &http.Client{
-			Timeout: 2 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Don't follow redirects
-			},
+		// We need different redirect behavior than ctx.Client (treat 3xx
+		// as "page exists" rather than following). Base it on
+		// SafeHTTPClient so the underlying dialer still refuses private
+		// IPs from a hostile baseURL.
+		client := netutil.SafeHTTPClient(2 * time.Second)
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
 		}
 
 		privacyURLs := []string{

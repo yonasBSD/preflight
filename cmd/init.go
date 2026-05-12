@@ -196,8 +196,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 	gitignorePath := filepath.Join(cwd, ".gitignore")
 	gitignoreUpdated := false
 	if content, err := os.ReadFile(gitignorePath); err == nil {
-		// .gitignore exists, check if preflight.yml is already in it
-		if !strings.Contains(string(content), "preflight.yml") {
+		// .gitignore exists, check if preflight.yml is already covered
+		// by an effective rule (handles globs, leading "/", comments,
+		// and "!preflight.yml" negations).
+		if !gitignoreCoversPreflightYml(content) {
 			if promptYesNo(reader, "Add preflight.yml to .gitignore?", true) {
 				// Append to .gitignore
 				f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_WRONLY, 0644)
@@ -254,6 +256,43 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// gitignoreCoversPreflightYml reports whether the given .gitignore
+// content has an effective rule that ignores `preflight.yml` at the
+// project root. Honors comments, a leading "/" anchor, glob patterns
+// supported by filepath.Match, and "!pattern" negations (later rules
+// override earlier ones, matching git's own evaluation order).
+// Does not understand `**` recursive globs; users relying on those
+// will just get the prompt again, which is harmless.
+func gitignoreCoversPreflightYml(content []byte) bool {
+	const target = "preflight.yml"
+	ignored := false
+	for _, raw := range strings.Split(string(content), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		negate := strings.HasPrefix(line, "!")
+		if negate {
+			line = line[1:]
+		}
+		line = strings.TrimPrefix(line, "/")
+		// Directory-only patterns can't match a file.
+		if strings.HasSuffix(line, "/") {
+			continue
+		}
+		match := line == target
+		if !match {
+			if ok, err := filepath.Match(line, target); err == nil && ok {
+				match = true
+			}
+		}
+		if match {
+			ignored = !negate
+		}
+	}
+	return ignored
 }
 
 func promptWithDefault(reader *bufio.Reader, prompt, defaultVal string) string {

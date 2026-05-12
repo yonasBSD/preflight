@@ -169,13 +169,10 @@ func (c WWWRedirectCheck) Run(ctx Context) (CheckResult, error) {
 }
 
 func getFinalURL(urlStr string) (string, error) {
-	// This call starts with a user-configured URL but follows redirects,
-	// so use SafeCheckRedirect to refuse any redirect hop that lands on
-	// a private / loopback / link-local address.
-	client := &http.Client{
-		Timeout:       5 * time.Second,
-		CheckRedirect: netutil.SafeCheckRedirect,
-	}
+	// This call starts with a user-configured URL and follows redirects;
+	// SafeHTTPClient guards both the initial dial AND each redirect hop
+	// against private / loopback / link-local addresses.
+	client := netutil.SafeHTTPClient(5 * time.Second)
 
 	req, err := http.NewRequest("HEAD", urlStr, nil)
 	if err != nil {

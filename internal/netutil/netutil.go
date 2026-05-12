@@ -6,6 +6,7 @@ package netutil
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -120,4 +121,60 @@ func LimitBody(body io.Reader, max int64) io.Reader {
 		max = MaxResponseBody
 	}
 	return io.LimitReader(body, max)
+}
+
+// SafeTLSDial performs a TLS handshake against addr, refusing to dial
+// any IP that IsPrivateIP reports. Use this for any TLS dial whose host
+// came from untrusted content (e.g. a URL parsed from preflight.yml).
+//
+// All resolved IPs are tried until one succeeds (so dual-stack hosts
+// with a broken AAAA still work). The total budget — DNS lookup + every
+// dial attempt — is bounded by timeout. If cfg is nil a fresh
+// tls.Config is used; if cfg.ServerName is empty it is set to the
+// hostname portion of addr so SNI and cert verification still work
+// after we substitute a literal IP into the dial target.
+func SafeTLSDial(network, addr string, cfg *tls.Config, timeout time.Duration) (*tls.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no IP addresses for %s", host)
+	}
+	for _, ip := range ips {
+		if IsPrivateIP(ip.IP) {
+			return nil, fmt.Errorf("%w: %s", ErrPrivateAddress, ip.IP)
+		}
+	}
+	clonedCfg := &tls.Config{}
+	if cfg != nil {
+		clonedCfg = cfg.Clone()
+	}
+	if clonedCfg.ServerName == "" {
+		clonedCfg.ServerName = host
+	}
+	var lastErr error
+	for _, ip := range ips {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			if lastErr == nil {
+				lastErr = context.DeadlineExceeded
+			}
+			break
+		}
+		dialer := &net.Dialer{Timeout: remaining}
+		conn, dialErr := tls.DialWithDialer(dialer, network, net.JoinHostPort(ip.IP.String(), port), clonedCfg)
+		if dialErr == nil {
+			return conn, nil
+		}
+		lastErr = dialErr
+	}
+	return nil, lastErr
 }

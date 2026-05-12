@@ -133,3 +133,39 @@ func TestSecrets_NoAllowlistBehavesAsBefore(t *testing.T) {
 		t.Fatalf("expected alert with no allowlist, got pass: %s", res.Message)
 	}
 }
+
+// .env.<env> files (production/staging/development) were being silently
+// dropped by the extension filter because filepath.Ext(".env.production")
+// returns ".production" — not in codeExtensions, and the bare ".env"
+// carve-out only matched the exact filename. These are the most
+// important files for a pre-launch secrets check.
+func TestSecrets_ScansEnvProductionAndSiblings(t *testing.T) {
+	for _, name := range []string{".env.production", ".env.staging", ".env.development", ".env.prod"} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, root, name, "GITHUB_TOKEN="+fakeGHPATa+"\n")
+
+			res := runSecretsCheck(t, root, &config.SecretsConfig{Enabled: true})
+			if res.Passed {
+				t.Fatalf("expected %s to be scanned and alert, got pass: %s", name, res.Message)
+			}
+		})
+	}
+}
+
+// .env.local-family files are intentionally skipped (they're meant to
+// hold real secrets and should never be committed). Make sure the
+// HasPrefix change above doesn't accidentally re-include them.
+func TestSecrets_StillSkipsEnvLocalFamily(t *testing.T) {
+	for _, name := range []string{".env.local", ".env.production.local", ".env.example"} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, root, name, "GITHUB_TOKEN="+fakeGHPATa+"\n")
+
+			res := runSecretsCheck(t, root, &config.SecretsConfig{Enabled: true})
+			if !res.Passed {
+				t.Fatalf("expected %s to be skipped, got alert: %s", name, res.Message)
+			}
+		})
+	}
+}

@@ -164,8 +164,12 @@ func (c SecretScanCheck) Run(ctx Context) (CheckResult, error) {
 		ext := filepath.Ext(path)
 		baseName := filepath.Base(path)
 
-		// Also check files without extension that might contain secrets
-		if !codeExtensions[ext] && ext != "" && baseName != ".env" {
+		// Also scan dotenv-family files. filepath.Ext(".env.production")
+		// returns ".production" (not in codeExtensions), so a plain
+		// `baseName != ".env"` check silently dropped .env.production,
+		// .env.staging, etc. — exactly the files most likely to leak
+		// real credentials. Use a prefix check instead.
+		if !codeExtensions[ext] && ext != "" && !strings.HasPrefix(baseName, ".env") {
 			return nil
 		}
 

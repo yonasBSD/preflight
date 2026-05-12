@@ -9,6 +9,7 @@ import (
 
 	"github.com/preflightsh/preflight/internal/checks"
 	"github.com/preflightsh/preflight/internal/config"
+	"github.com/preflightsh/preflight/internal/netutil"
 	"github.com/preflightsh/preflight/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -70,9 +71,17 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return &ExitError{Code: 2, Err: fmt.Errorf("%s", msg)}
 	}
 
-	// Create HTTP client with timeout
-	httpClient := &http.Client{
-		Timeout: 2 * time.Second,
+	// Create HTTP client with timeout. SafeHTTPClient refuses to dial
+	// private/loopback/metadata IPs so a hostile preflight.yml cannot
+	// coerce checks into probing internal services. We fall back to a
+	// plain client when the user explicitly configured a local dev URL
+	// (localhost, *.local, *.test, *.ddev.site etc.) — that's a
+	// trusted-config workflow, not the hostile-repo threat model.
+	var httpClient *http.Client
+	if checks.IsLocalURL(cfg.URLs.Production) || checks.IsLocalURL(cfg.URLs.Staging) {
+		httpClient = &http.Client{Timeout: 2 * time.Second}
+	} else {
+		httpClient = netutil.SafeHTTPClient(2 * time.Second)
 	}
 
 	// Create check context

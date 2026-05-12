@@ -2,10 +2,13 @@ package checks
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"time"
+
+	"github.com/preflightsh/preflight/internal/netutil"
 )
 
 type SSLCheck struct{}
@@ -59,17 +62,16 @@ func (c SSLCheck) Run(ctx Context) (CheckResult, error) {
 		host += ":443"
 	}
 
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", host, &tls.Config{
+	conn, err := netutil.SafeTLSDial("tcp", host, &tls.Config{
 		MinVersion: tls.VersionTLS12,
-	})
+	}, 10*time.Second)
 	if err != nil {
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityWarn,
 			Passed:   false,
-			Message:  fmt.Sprintf("Could not connect: %v", err),
+			Message:  sanitizeTLSDialError(err),
 		}, nil
 	}
 	defer conn.Close()
@@ -138,4 +140,23 @@ func (c SSLCheck) Run(ctx Context) (CheckResult, error) {
 		Passed:   true,
 		Message:  fmt.Sprintf("Valid, expires in %d days", daysUntilExpiry),
 	}, nil
+}
+
+// sanitizeTLSDialError formats a dial/TLS error for the user-visible
+// Message field without leaking internal hostnames learned from cert
+// subjects back to the caller. Both x509.HostnameError and Go 1.20+'s
+// tls.CertificateVerificationError can embed SANs in their string form.
+func sanitizeTLSDialError(err error) string {
+	if errors.Is(err, netutil.ErrPrivateAddress) {
+		return "Refused to connect: production URL resolved to a private/loopback address"
+	}
+	var hostErr *x509.HostnameError
+	if errors.As(err, &hostErr) {
+		return "Certificate hostname mismatch"
+	}
+	var verifyErr *tls.CertificateVerificationError
+	if errors.As(err, &verifyErr) {
+		return "Certificate verification failed"
+	}
+	return fmt.Sprintf("Could not connect: %v", err)
 }

@@ -33,3 +33,6 @@ preflight.yml
 # Environment files
 .env
 .env.local
+
+# deepsec scanning workspace
+.deepsec/

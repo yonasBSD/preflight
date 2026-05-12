@@ -1,7 +1,9 @@
 package checks
 
 import (
+	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -165,15 +167,39 @@ var Registry = []Check{
 	LogRocketCheck{},
 }
 
-// isLocalURL checks if a URL points to localhost or local IP
-func isLocalURL(url string) bool {
-	url = strings.ToLower(url)
-	return strings.Contains(url, "localhost") ||
-		strings.Contains(url, "127.0.0.1") ||
-		strings.Contains(url, "0.0.0.0") ||
-		strings.HasSuffix(url, ".local") ||
-		strings.HasSuffix(url, ".test") ||
-		strings.HasSuffix(url, ".ddev.site")
+// IsLocalURL reports whether rawURL points at a developer's own machine
+// or a local-only TLD that conventionally maps to it (mDNS, ddev, etc.).
+// Uses strict hostname parsing rather than substring search on the whole
+// URL, so it cannot be tricked by patterns like
+// "https://localhost.attacker.com/" or "https://attacker.com/?h=127.0.0.1"
+// — this matters when callers use IsLocalURL as a security gate (see
+// cmd/scan.go's choice of HTTP client).
+func IsLocalURL(rawURL string) bool {
+	candidate := rawURL
+	if !strings.HasPrefix(candidate, "http://") && !strings.HasPrefix(candidate, "https://") {
+		candidate = "http://" + candidate
+	}
+	parsed, err := url.Parse(candidate)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host == "" {
+		return false
+	}
+	switch host {
+	case "localhost", "127.0.0.1", "0.0.0.0", "::1":
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	for _, tld := range []string{".local", ".test", ".ddev.site"} {
+		if strings.HasSuffix(host, tld) {
+			return true
+		}
+	}
+	return false
 }
 
 // doGet performs an HTTP GET with a User-Agent header
@@ -189,7 +215,7 @@ func doGet(client *http.Client, url string) (*http.Response, error) {
 // tryURL attempts to reach a URL, trying both protocols for local URLs
 func tryURL(client *http.Client, url string) (*http.Response, string, error) {
 	// If it's a local URL without protocol, try both
-	if isLocalURL(url) && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+	if IsLocalURL(url) && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		// Try https first (for ddev, etc.)
 		httpsURL := "https://" + url
 		resp, err := doGet(client, httpsURL)
@@ -208,7 +234,7 @@ func tryURL(client *http.Client, url string) (*http.Response, string, error) {
 
 	// If it already has a protocol, or it's a local URL with protocol, just try it
 	// But for local URLs, also try the alternate protocol
-	if isLocalURL(url) {
+	if IsLocalURL(url) {
 		resp, err := doGet(client, url)
 		if err == nil {
 			return resp, url, nil

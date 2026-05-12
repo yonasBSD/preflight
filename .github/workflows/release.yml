@@ -14,44 +14,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: '1.25'
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
         with:
           distribution: goreleaser
-          version: ~> v2
+          version: v2.15.4
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
       - name: Trigger npm publish
+        env:
+          DISPATCH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}" \
+            -H "Authorization: Bearer $DISPATCH_TOKEN" \
             https://api.github.com/repos/preflightsh/npm-preflight/dispatches \
             -d "{\"event_type\":\"publish\",\"client_payload\":{\"version\":\"$VERSION\"}}"
 
@@ -60,7 +62,7 @@ jobs:
           WEBHOOK_SECRET: ${{ secrets.AUTOCHANGELOG_WEBHOOK_SECRET }}
         run: |
           BODY='{"bump": "patch"}'
-          SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | awk '{print $NF}')
+          SIGNATURE=$(printf '%s' "$BODY" | python3 -c "import hmac, hashlib, os, sys; print(hmac.new(os.environ['WEBHOOK_SECRET'].encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest())")
           curl -fsSL -X POST https://autochangelog.com/api/v1/hooks/045aaccf-bd97-4227-bf8f-bec556e4331b \
             -H "Content-Type: application/json" \
             -H "X-Webhook-Signature: sha256=$SIGNATURE" \
