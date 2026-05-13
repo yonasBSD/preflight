@@ -77,6 +77,34 @@ func (c StructuredDataCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	// Per-env rendered HTML fallback for CMS-generated JSON-LD.
+	if summary, prodPassed := RunPerEnv(ctx, func(html string) []string {
+		if reJSONLDScript.MatchString(html) || reSchemaContext.MatchString(html) {
+			return nil
+		}
+		return []string{"structured data"}
+	}); summary != "" {
+		if prodPassed {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  summary,
+				Details:  details,
+			}, nil
+		}
+		return CheckResult{
+			ID:          c.ID(),
+			Title:       c.Title(),
+			Severity:    SeverityWarn,
+			Passed:      false,
+			Message:     summary,
+			Suggestions: getStructuredDataSuggestions(ctx.Config.Stack),
+			Details:     details,
+		}, nil
+	}
+
 	return CheckResult{
 		ID:       c.ID(),
 		Title:    c.Title(),
@@ -86,6 +114,12 @@ func (c StructuredDataCheck) Run(ctx Context) (CheckResult, error) {
 		Suggestions: getStructuredDataSuggestions(ctx.Config.Stack),
 	}, nil
 }
+
+// Regexes for detecting JSON-LD in rendered HTML.
+var (
+	reJSONLDScript  = regexp.MustCompile(`(?i)<script[^>]+type\s*=\s*["']application/ld\+json["']`)
+	reSchemaContext = regexp.MustCompile(`(?i)["']@context["']\s*:\s*["']https?://schema\.org`)
+)
 
 func hasStructuredData(content, stack string) bool {
 	// Strip comments to avoid false positives on commented-out code

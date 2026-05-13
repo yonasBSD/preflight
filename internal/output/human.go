@@ -308,6 +308,8 @@ func hasUsefulPassedMessage(msg string) bool {
 		"not configured", // Check passed because it's not configured
 		"skipped",        // Check was skipped
 		"not declared",   // Service not declared
+		"prod:",          // Per-environment summary (security headers, SEO checks)
+		"staging:",
 	}
 
 	msgLower := strings.ToLower(msg)

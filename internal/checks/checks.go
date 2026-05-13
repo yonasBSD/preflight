@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -47,12 +48,19 @@ type Context struct {
 	Config  *config.PreflightConfig
 	Client  *http.Client
 	Verbose bool
-	// PageHTML is the rendered HTML of the configured site's homepage,
-	// fetched once at scan start. Empty when no URL is configured, the
-	// site is unreachable, or fetching is skipped. Checks that look for
-	// dynamically-generated meta tags (Craft+SEOmatic, WordPress+Yoast,
-	// etc.) can use this as a fallback when static template scanning
-	// turns up nothing.
+	// PageHTMLStaging and PageHTMLProduction hold the rendered homepage
+	// HTML for each configured environment, fetched once at scan start.
+	// Each is empty when the corresponding URL isn't configured or the
+	// fetch failed. Checks that look for dynamically-generated metadata
+	// (Craft+SEOmatic, WordPress+Yoast, etc.) scan these to detect output
+	// that doesn't appear in the static template. Checks that care about
+	// per-environment differences (SEO meta, canonical, structured data,
+	// OG/Twitter) report each env separately.
+	PageHTMLStaging    string
+	PageHTMLProduction string
+	// PageHTML is the first-available rendered homepage HTML (staging
+	// preferred). Convenience for env-agnostic checks like favicon
+	// detection that don't care which environment the markup came from.
 	PageHTML string
 }
 
@@ -211,22 +219,64 @@ func IsLocalURL(rawURL string) bool {
 	return false
 }
 
-// FetchPageHTML fetches the homepage of the configured site (prefers
-// staging, falls back to production) and returns its body as a string.
-// Used to populate Context.PageHTML so multiple checks can scan the
-// rendered HTML without each making their own request. Body is capped at
-// netutil.MaxResponseBody. Returns empty string on any error.
-func FetchPageHTML(client *http.Client, cfg *config.PreflightConfig) string {
-	var baseURL string
-	if cfg.URLs.Staging != "" {
-		baseURL = cfg.URLs.Staging
-	} else if cfg.URLs.Production != "" {
-		baseURL = cfg.URLs.Production
+// PerEnvResult is one environment's outcome from a per-env check.
+type PerEnvResult struct {
+	Name    string   // "prod" or "staging"
+	Missing []string // items not found; empty means env passed
+	Failed  bool     // true on either unreachable OR missing items
+}
+
+// RunPerEnv invokes scanRenderedHTML against each configured environment's
+// rendered homepage HTML and reports per-env results. Production is listed
+// first because it's treated as the authoritative source of truth: callers
+// generally want to pass when production has the metadata, even if
+// staging is intentionally different (SEOmatic dev mode, robots=none,
+// etc.). authoritativePassed reflects production's outcome, or staging's
+// when production isn't configured. unreachable envs are surfaced
+// verbatim but never flip authoritativePassed to true.
+func RunPerEnv(ctx Context, scanRenderedHTML func(html string) []string) (summary string, authoritativePassed bool) {
+	type envR struct {
+		name string
+		html string
 	}
-	if baseURL == "" {
+	var envs []envR
+	if ctx.Config.URLs.Production != "" {
+		envs = append(envs, envR{name: "prod", html: ctx.PageHTMLProduction})
+	}
+	if ctx.Config.URLs.Staging != "" {
+		envs = append(envs, envR{name: "staging", html: ctx.PageHTMLStaging})
+	}
+	if len(envs) == 0 {
+		return "", false
+	}
+	var lines []string
+	for i, e := range envs {
+		if e.html == "" {
+			lines = append(lines, fmt.Sprintf("%s: unreachable", e.name))
+			continue
+		}
+		missing := scanRenderedHTML(e.html)
+		if len(missing) == 0 {
+			lines = append(lines, fmt.Sprintf("%s: ✓", e.name))
+			if i == 0 {
+				authoritativePassed = true
+			}
+		} else {
+			lines = append(lines, fmt.Sprintf("%s missing: %s", e.name, strings.Join(missing, ", ")))
+		}
+	}
+	return strings.Join(lines, "\n                    └─ "), authoritativePassed
+}
+
+// FetchPageHTML fetches a single URL's body. Returns empty string on
+// any error. Body is capped at netutil.MaxResponseBody. The caller picks
+// the client so SafeHTTPClient can guard fetches to production URLs
+// while a relaxed client can reach local dev URLs.
+func FetchPageHTML(client *http.Client, rawURL string) string {
+	if rawURL == "" {
 		return ""
 	}
-	baseURL = strings.TrimSuffix(baseURL, "/")
+	baseURL := strings.TrimSuffix(rawURL, "/")
 	resp, _, err := tryURL(client, baseURL+"/")
 	if err != nil {
 		return ""

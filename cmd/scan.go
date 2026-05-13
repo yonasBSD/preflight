@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/preflightsh/preflight/internal/checks"
@@ -84,6 +85,19 @@ func runScan(cmd *cobra.Command, args []string) error {
 		httpClient = netutil.SafeHTTPClient(2 * time.Second)
 	}
 
+	// Spinner gives the user something to watch while checks run. Off in
+	// CI and JSON modes (which expect quiet/structured output) and on
+	// non-TTY stdout. The Spinner type handles its own no-op when
+	// disabled, so we can call its methods unconditionally below.
+	var spinner *output.Spinner
+	if !ciMode && formatFlag != "json" {
+		spinner = output.NewSpinner()
+		spinner.Start("Preparing scan...")
+		defer spinner.Stop()
+	} else {
+		spinner = &output.Spinner{} // no-op
+	}
+
 	// Create check context. Pre-fetch the homepage once so checks that
 	// need to scan rendered HTML (OG/Twitter and favicon detection for
 	// CMS-driven sites) can share a single request.
@@ -93,8 +107,42 @@ func runScan(cmd *cobra.Command, args []string) error {
 		Client:  httpClient,
 		Verbose: verboseFlag,
 	}
+	// Fetch staging and production homepage HTML in parallel. Staging
+	// uses the chosen httpClient (which is the relaxed client when
+	// staging is a local dev URL like *.lndo.site). Production always
+	// uses SafeHTTPClient as defense-in-depth, since a typo or hostile
+	// preflight.yml could otherwise point production at an internal IP.
+	// If the user has only configured production and it's a local URL,
+	// reuse the relaxed client for that too.
 	if cfg.URLs.Staging != "" || cfg.URLs.Production != "" {
-		ctx.PageHTML = checks.FetchPageHTML(httpClient, cfg)
+		spinner.Update("Fetching homepages...")
+		var wg sync.WaitGroup
+		if cfg.URLs.Staging != "" {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ctx.PageHTMLStaging = checks.FetchPageHTML(httpClient, cfg.URLs.Staging)
+			}()
+		}
+		if cfg.URLs.Production != "" {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				prodClient := netutil.SafeHTTPClient(2 * time.Second)
+				if checks.IsLocalURL(cfg.URLs.Production) {
+					prodClient = httpClient
+				}
+				ctx.PageHTMLProduction = checks.FetchPageHTML(prodClient, cfg.URLs.Production)
+			}()
+		}
+		wg.Wait()
+		// PageHTML is the first-available rendered HTML, for env-agnostic
+		// checks like favicon detection.
+		if ctx.PageHTMLStaging != "" {
+			ctx.PageHTML = ctx.PageHTMLStaging
+		} else {
+			ctx.PageHTML = ctx.PageHTMLProduction
+		}
 	}
 
 	// Build list of enabled checks
@@ -117,7 +165,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	// Run all checks
 	var results []checks.CheckResult
-	for _, check := range enabledChecks {
+	for i, check := range enabledChecks {
+		spinner.Update(fmt.Sprintf("Running %s (%d/%d)", check.Title(), i+1, len(enabledChecks)))
 		result, err := check.Run(ctx)
 		if err != nil {
 			// Convert error to failed check result
@@ -131,6 +180,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 		results = append(results, result)
 	}
+	spinner.Stop()
 
 	// Output results
 	var outputter output.Outputter

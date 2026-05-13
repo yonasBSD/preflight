@@ -136,6 +136,42 @@ func (c SEOMetadataCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	// Static template missing items: per-env rendered HTML fallback.
+	// SEOmatic and similar plugins generate these tags at runtime, and
+	// dev/prod can legitimately differ (robots="none" on dev, etc.) so
+	// we report each env separately.
+	staticMissing := missing
+	if summary, prodPassed := RunPerEnv(ctx, func(html string) []string {
+		var stillMissing []string
+		for _, name := range staticMissing {
+			if !renderedHasSEOTag(html, name) {
+				stillMissing = append(stillMissing, name)
+			}
+		}
+		return stillMissing
+	}); summary != "" {
+		if prodPassed {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  summary,
+			}, nil
+		}
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityWarn,
+			Passed:   false,
+			Message:  summary,
+			Suggestions: []string{
+				"Add missing meta tags to your layout",
+				"Consider using a SEO component or helper",
+			},
+		}, nil
+	}
+
 	return CheckResult{
 		ID:       c.ID(),
 		Title:    c.Title(),
@@ -147,6 +183,23 @@ func (c SEOMetadataCheck) Run(ctx Context) (CheckResult, error) {
 			"Consider using a SEO component or helper",
 		},
 	}, nil
+}
+
+// renderedHasSEOTag reports whether the rendered HTML contains the named
+// SEO element. Accepts attributes in either order and either quote style.
+func renderedHasSEOTag(html, name string) bool {
+	switch name {
+	case "title":
+		return regexp.MustCompile(`(?i)<title[^>]*>[^<]+</title>`).MatchString(html)
+	case "description":
+		return regexp.MustCompile(`(?i)<meta[^>]+name\s*=\s*["']description["']`).MatchString(html) ||
+			regexp.MustCompile(`(?i)<meta[^>]+content\s*=\s*["'][^"']*["'][^>]+name\s*=\s*["']description["']`).MatchString(html)
+	case "og:title", "og:description":
+		quoted := regexp.QuoteMeta(name)
+		return regexp.MustCompile(`(?i)<meta[^>]+property\s*=\s*["']`+quoted+`["']`).MatchString(html) ||
+			regexp.MustCompile(`(?i)<meta[^>]+content\s*=\s*["'][^"']*["'][^>]+property\s*=\s*["']`+quoted+`["']`).MatchString(html)
+	}
+	return false
 }
 
 // getLayoutFile returns the configured layout or auto-detects one based on stack

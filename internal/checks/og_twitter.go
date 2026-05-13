@@ -182,19 +182,39 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 			matched = hasNextJSOGTwitterMeta(contentStr, name)
 		}
 
-		// Fallback: scan the rendered homepage HTML. Catches CMS-driven
-		// sites (Craft+SEOmatic, WordPress+Yoast, etc.) where meta tags
-		// are emitted at runtime, not present in the static template. Also
-		// accepts the attribute order reversed (content first, then
-		// property/name) which the strict per-name regexes above reject.
-		if !matched && ctx.PageHTML != "" {
-			matched = renderedHasMetaTag(ctx.PageHTML, name)
-		}
-
 		if matched {
 			found = append(found, name)
 		} else {
 			missing = append(missing, name)
+		}
+	}
+
+	// Per-env rendered HTML fallback for items that weren't in the static
+	// template. Catches CMS-driven sites (Craft+SEOmatic, WordPress+Yoast,
+	// etc.) where meta tags are emitted at runtime. We do this before the
+	// image-dimension checks so a fully-passing rendered HTML doesn't get
+	// downgraded by image-size warnings on a non-authoritative env.
+	staticMissing := append([]string(nil), missing...)
+	var perEnvSummary string
+	var perEnvProdPassed bool
+	if len(staticMissing) > 0 && (ctx.Config.URLs.Production != "" || ctx.Config.URLs.Staging != "") {
+		perEnvSummary, perEnvProdPassed = RunPerEnv(ctx, func(html string) []string {
+			var stillMissing []string
+			for _, name := range staticMissing {
+				if !renderedHasMetaTag(html, name) {
+					stillMissing = append(stillMissing, name)
+				}
+			}
+			return stillMissing
+		})
+		if perEnvProdPassed {
+			// Production has all the OG/Twitter tags. Treat the static
+			// template as "good enough" and clear missing so dimension
+			// checks below run against the rendered values.
+			missing = nil
+			for _, name := range staticMissing {
+				found = append(found, name)
+			}
 		}
 	}
 
@@ -365,18 +385,24 @@ func (c OGTwitterCheck) Run(ctx Context) (CheckResult, error) {
 
 	// Build result
 	if len(missing) == 0 && len(dimensionWarnings) == 0 {
+		msg := "OG and Twitter card metadata configured"
+		if perEnvSummary != "" {
+			msg = perEnvSummary
+		}
 		return CheckResult{
 			ID:       c.ID(),
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  "OG and Twitter card metadata configured",
+			Message:  msg,
 			Details:  details,
 		}, nil
 	}
 
 	var messages []string
-	if len(missing) > 0 {
+	if perEnvSummary != "" {
+		messages = append(messages, perEnvSummary)
+	} else if len(missing) > 0 {
 		messages = append(messages, "Missing: "+strings.Join(missing, ", "))
 	}
 	if len(dimensionWarnings) > 0 {
