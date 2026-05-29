@@ -71,7 +71,7 @@ func redactChecks(results []checks.CheckResult) []dashboard.PublishCheck {
 	for _, r := range results {
 		msg := r.Message
 		if r.ID == "secrets" && !r.Passed {
-			msg = "Potential secrets detected in your codebase. Details are hidden for privacy; run `preflight scan` locally to see them."
+			msg = "Potential secrets detected (details hidden for privacy)."
 		}
 		out = append(out, dashboard.PublishCheck{
 			ID:       r.ID,
