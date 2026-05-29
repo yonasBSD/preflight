@@ -44,6 +44,10 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 	if baseURL == "" {
 		baseURL = ctx.Config.URLs.Production
 	}
+	// Trim the trailing slash so baseURL+"/privacy" doesn't become "…//privacy",
+	// which servers 301-redirect (path cleaning) and would be miscounted as the
+	// page existing.
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	if baseURL != "" {
 		// Reuse ctx.Client (which already handles the local-vs-safe choice
@@ -75,10 +79,10 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 					privacyPath = path + " (via HTTP)"
 				} else if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 					// Count a redirect as "found" only if it stays on the same
-					// domain AND doesn't just bounce to a login/auth page
-					// (auth-walled apps redirect unknown paths to /login).
+					// domain, isn't a login/auth bounce, and actually lands on a
+					// privacy-looking URL (not a path-clean or homepage bounce).
 					loc := resp.Header.Get("Location")
-					if isSameDomainRedirect(baseURL, loc) && !isAuthRedirect(loc) {
+					if isSameDomainRedirect(baseURL, loc) && !isAuthRedirect(loc) && redirectMentions(loc, "privacy") {
 						hasPrivacy = true
 						privacyPath = path + " (via HTTP)"
 					}
@@ -105,7 +109,7 @@ func (c LegalPagesCheck) Run(ctx Context) (CheckResult, error) {
 					termsPath = path + " (via HTTP)"
 				} else if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 					loc := resp.Header.Get("Location")
-					if isSameDomainRedirect(baseURL, loc) && !isAuthRedirect(loc) {
+					if isSameDomainRedirect(baseURL, loc) && !isAuthRedirect(loc) && redirectMentions(loc, "terms", "tos", "eula") {
 						hasTerms = true
 						termsPath = path + " (via HTTP)"
 					}
@@ -432,6 +436,26 @@ func isAuthRedirect(location string) bool {
 	}
 	for _, marker := range []string{"login", "signin", "sign-in", "sign_in", "/auth", "authenticate", "session/new", "/account"} {
 		if strings.Contains(p, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// redirectMentions reports whether a redirect Location's path contains any of the
+// given keywords, so a 3xx is only counted as the legal page when it actually
+// lands on a matching URL (e.g. /privacy -> /privacy-policy) rather than a
+// path-clean or homepage bounce.
+func redirectMentions(location string, keywords ...string) bool {
+	if location == "" {
+		return false
+	}
+	p := strings.ToLower(location)
+	if u, err := url.Parse(location); err == nil && u.Path != "" {
+		p = strings.ToLower(u.Path)
+	}
+	for _, kw := range keywords {
+		if strings.Contains(p, kw) {
 			return true
 		}
 	}

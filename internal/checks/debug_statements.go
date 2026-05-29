@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 type DebugStatementsCheck struct{}
@@ -19,7 +21,7 @@ func (c DebugStatementsCheck) Title() string {
 }
 
 func (c DebugStatementsCheck) Run(ctx Context) (CheckResult, error) {
-	findings := scanForDebugStatements(ctx.RootDir)
+	findings := scanForDebugStatements(ctx.RootDir, ctx.Config.Ignore)
 
 	if len(findings) == 0 {
 		return CheckResult{
@@ -60,7 +62,7 @@ type debugPattern struct {
 	extensions  []string // file extensions to check (empty = all supported)
 }
 
-func scanForDebugStatements(rootDir string) []string {
+func scanForDebugStatements(rootDir string, ignore []string) []string {
 	var findings []string
 
 	// Debug patterns by language
@@ -309,6 +311,18 @@ func scanForDebugStatements(rootDir string) []string {
 		// would let os.ReadFile bypass the 500KB size cap below).
 		if !d.Type().IsRegular() {
 			return nil
+		}
+
+		// Honor user-configured ignore globs (the top-level `ignore` list in
+		// preflight.yml), so build tooling, vendored code, or files that only
+		// mention debug calls in strings/docs can be excluded.
+		if rel, relErr := filepath.Rel(rootDir, path); relErr == nil {
+			rel = filepath.ToSlash(rel)
+			for _, g := range ignore {
+				if ok, _ := doublestar.Match(filepath.ToSlash(g), rel); ok {
+					return nil
+				}
+			}
 		}
 
 		// Check if file should be skipped

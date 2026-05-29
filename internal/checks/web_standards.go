@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,16 +19,67 @@ import (
 // dynamically by CMS plugins (robots.txt, sitemap.xml) so they aren't
 // reported missing just because they don't exist on disk.
 func probeStaticFileOverHTTP(ctx Context, path string) (string, bool) {
-	if ctx.Client == nil {
+	base := configuredProbeBaseURL(ctx)
+	if base == "" {
 		return "", false
 	}
-	var baseURL string
+	return probeFileAtBase(ctx, base, path)
+}
+
+// configuredProbeBaseURL returns the staging URL if set, otherwise production.
+func configuredProbeBaseURL(ctx Context) string {
 	if ctx.Config.URLs.Staging != "" {
-		baseURL = ctx.Config.URLs.Staging
-	} else if ctx.Config.URLs.Production != "" {
-		baseURL = ctx.Config.URLs.Production
+		return ctx.Config.URLs.Staging
 	}
-	if baseURL == "" {
+	return ctx.Config.URLs.Production
+}
+
+// probeStaticFileWithParents probes the configured URL for path and, when a
+// production URL is set, also walks up to its registrable parent domain(s)
+// (e.g. app.example.com -> example.com), so a file that legitimately lives on
+// the org's main site (sitemap.xml, llms.txt) still counts for a subdomain app.
+func probeStaticFileWithParents(ctx Context, path string) (string, bool) {
+	if servedAt, ok := probeStaticFileOverHTTP(ctx, path); ok {
+		return servedAt, true
+	}
+	for _, base := range parentBaseURLs(ctx.Config.URLs.Production) {
+		if servedAt, ok := probeFileAtBase(ctx, base, path); ok {
+			return servedAt, true
+		}
+	}
+	return "", false
+}
+
+// parentBaseURLs walks up from a production URL's host to its parent domain(s):
+// app.example.com -> [https://example.com]. It strips one subdomain label at a
+// time and stops at two labels so it never probes a bare TLD. Returns nil when
+// no URL is given or the host is already apex (two labels).
+func parentBaseURLs(rawURL string) []string {
+	if rawURL == "" {
+		return nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return nil
+	}
+	scheme := u.Scheme
+	if scheme == "" {
+		scheme = "https"
+	}
+	labels := strings.Split(u.Hostname(), ".")
+	var out []string
+	for len(labels) > 2 {
+		labels = labels[1:]
+		out = append(out, scheme+"://"+strings.Join(labels, "."))
+	}
+	return out
+}
+
+// probeFileAtBase fetches baseURL+path and reports success only for a 200 with
+// non-empty, non-HTML content (robots.txt is plain text, sitemap.xml is XML —
+// an HTML body means we got a page, e.g. a login/SPA shell, not the file).
+func probeFileAtBase(ctx Context, baseURL, path string) (string, bool) {
+	if ctx.Client == nil || baseURL == "" {
 		return "", false
 	}
 	baseURL = strings.TrimSuffix(baseURL, "/")
@@ -47,10 +99,6 @@ func probeStaticFileOverHTTP(ctx Context, path string) (string, bool) {
 	if trimmed == "" {
 		return "", false
 	}
-	// Reject HTML responses. robots.txt is plain text and sitemap.xml is XML,
-	// so an HTML body means we were served a page (commonly a login or SPA
-	// shell after the app redirected an unknown path to it) rather than the
-	// file itself — otherwise every auth-walled app reports these as present.
 	ct := strings.ToLower(resp.Header.Get("Content-Type"))
 	lower := strings.ToLower(trimmed)
 	if strings.Contains(ct, "text/html") ||
@@ -765,9 +813,10 @@ func (c SitemapCheck) Run(ctx Context) (CheckResult, error) {
 	}
 
 	// HTTP fallback: try common sitemap paths in case it's served
-	// dynamically (Craft+SEOmatic, WordPress, etc.).
+	// dynamically (Craft+SEOmatic, WordPress, etc.), and walk up to the parent
+	// domain so a sitemap on the org's main site counts for a subdomain app.
 	for _, path := range []string{"/sitemap.xml", "/sitemap_index.xml", "/sitemap.xml.gz"} {
-		if servedAt, ok := probeStaticFileOverHTTP(ctx, path); ok {
+		if servedAt, ok := probeStaticFileWithParents(ctx, path); ok {
 			return CheckResult{
 				ID:       c.ID(),
 				Title:    c.Title(),
@@ -989,6 +1038,20 @@ func (c LLMsTxtCheck) Run(ctx Context) (CheckResult, error) {
 			Passed:   true,
 			Message:  "llms.txt generated via " + llmsFoundPath,
 		}, nil
+	}
+
+	// HTTP fallback: served dynamically, or hosted on the org's main site
+	// (walk up to the parent domain of the production URL).
+	for _, path := range []string{"/llms.txt", "/.well-known/llms.txt"} {
+		if servedAt, ok := probeStaticFileWithParents(ctx, path); ok {
+			return CheckResult{
+				ID:       c.ID(),
+				Title:    c.Title(),
+				Severity: SeverityInfo,
+				Passed:   true,
+				Message:  "llms.txt served at " + servedAt,
+			}, nil
+		}
 	}
 
 	return CheckResult{

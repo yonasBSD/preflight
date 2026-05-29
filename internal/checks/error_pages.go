@@ -1,8 +1,13 @@
 package checks
 
 import (
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/preflightsh/preflight/internal/netutil"
 )
 
 type ErrorPagesCheck struct{}
@@ -101,6 +106,16 @@ func (c ErrorPagesCheck) Run(ctx Context) (CheckResult, error) {
 		}
 	}
 
+	// Server-rendered apps return 404s dynamically (no file on disk), which the
+	// filesystem checks above can't see. If a URL is configured, probe a path
+	// that shouldn't exist and accept a real HTML 404 response as a custom page.
+	if !has404 {
+		if probeCustom404OverHTTP(ctx) {
+			has404 = true
+			found404 = "served dynamically (HTTP 404)"
+		}
+	}
+
 	// Build result
 	if has404 && has500 {
 		return CheckResult{
@@ -134,6 +149,44 @@ func (c ErrorPagesCheck) Run(ctx Context) (CheckResult, error) {
 		Message:     "No custom 404 page found",
 		Suggestions: suggestions,
 	}, nil
+}
+
+// probeCustom404OverHTTP requests a path that should not exist at the
+// configured staging/production URL and reports whether the server returns a
+// real (HTML) 404 page. This detects custom error pages rendered dynamically by
+// a server framework, which the filesystem checks can't see. A bare plain-text
+// default (e.g. Go's "404 page not found") is not counted.
+func probeCustom404OverHTTP(ctx Context) bool {
+	if ctx.Client == nil {
+		return false
+	}
+	var baseURL string
+	if ctx.Config.URLs.Staging != "" {
+		baseURL = ctx.Config.URLs.Staging
+	} else if ctx.Config.URLs.Production != "" {
+		baseURL = ctx.Config.URLs.Production
+	}
+	if baseURL == "" {
+		return false
+	}
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	resp, _, err := tryURL(ctx.reqContext(), ctx.Client, baseURL+"/preflight-404-probe-please-do-not-exist")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		return false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, netutil.MaxResponseBody))
+	if err != nil {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(string(body)))
+	ct := strings.ToLower(resp.Header.Get("Content-Type"))
+	return strings.Contains(ct, "text/html") ||
+		strings.Contains(lower, "<html") ||
+		strings.Contains(lower, "<!doctype html")
 }
 
 // getErrorPagePaths returns the expected paths for 404 and 500 error pages based on stack
