@@ -109,6 +109,105 @@ func probeFileAtBase(ctx Context, baseURL, path string) (string, bool) {
 	return actualURL, true
 }
 
+// probeIndexNowKeyOverHTTP fetches /{key}.txt from the configured staging and
+// production URLs (and production's parent domains) and reports the URL it was
+// served from when the response is 200 and the body is exactly the key. Unlike
+// robots.txt/sitemap.xml, "200 with non-empty body" is not sufficient: IndexNow
+// requires the file's contents to equal the key, so we compare exactly. This is
+// the authoritative signal — it confirms the key is actually reachable, which is
+// what participating search engines verify — and is stack-agnostic, so it covers
+// dynamic serving (e.g. a Go net/http route) that no on-disk pattern matches.
+func probeIndexNowKeyOverHTTP(ctx Context, key string) (string, bool) {
+	if ctx.Client == nil || key == "" {
+		return "", false
+	}
+	path := "/" + key + ".txt"
+
+	var bases []string
+	if ctx.Config.URLs.Staging != "" {
+		bases = append(bases, ctx.Config.URLs.Staging)
+	}
+	if ctx.Config.URLs.Production != "" {
+		bases = append(bases, ctx.Config.URLs.Production)
+	}
+	bases = append(bases, parentBaseURLs(ctx.Config.URLs.Production)...)
+
+	seen := make(map[string]bool)
+	for _, base := range bases {
+		base = strings.TrimSuffix(base, "/")
+		if base == "" || seen[base] {
+			continue
+		}
+		seen[base] = true
+
+		resp, actualURL, err := tryURL(ctx.reqContext(), ctx.Client, base+path)
+		if err != nil {
+			continue
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, netutil.MaxResponseBody))
+		resp.Body.Close()
+		if readErr != nil || resp.StatusCode != http.StatusOK {
+			continue
+		}
+		if strings.TrimSpace(string(body)) == key {
+			return actualURL, true
+		}
+	}
+	return "", false
+}
+
+// detectIndexNowInSource walks common server-side source directories for a file
+// that wires up IndexNow: a route serving {key}.txt, a handler, or the key
+// constant itself. This catches dynamic serving on stacks without a conventional
+// file layout (e.g. a Go net/http ServeMux registering "GET /{key}.txt") where
+// the key never exists as a file on disk. Returns the matching relative path.
+func detectIndexNowInSource(ctx Context, key string) (string, bool) {
+	srcRoots := []string{
+		"internal", "handlers", "web", "server", "routes",
+		"cmd", "pkg", "src", "app", "lib",
+	}
+	sourceExts := map[string]bool{
+		".go": true, ".rb": true, ".php": true, ".py": true, ".js": true,
+		".ts": true, ".cs": true, ".ex": true, ".rs": true, ".java": true, ".kt": true,
+	}
+
+	var found string
+	for _, root := range srcRoots {
+		if found != "" {
+			break
+		}
+		dirPath := filepath.Join(ctx.RootDir, root)
+		if _, err := os.Stat(dirPath); err != nil {
+			continue
+		}
+		_ = filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil || found != "" {
+				return nil
+			}
+			if info.IsDir() {
+				switch info.Name() {
+				case "node_modules", ".git", "vendor", "testdata":
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !sourceExts[strings.ToLower(filepath.Ext(info.Name()))] {
+				return nil
+			}
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			if strings.Contains(strings.ToLower(string(content)), "indexnow") ||
+				(key != "" && strings.Contains(string(content), key+".txt")) {
+				found = relPath(ctx.RootDir, path)
+			}
+			return nil
+		})
+	}
+	return found, found != ""
+}
+
 // RobotsTxtCheck verifies robots.txt exists
 type RobotsTxtCheck struct{}
 
@@ -1432,6 +1531,31 @@ func (c IndexNowCheck) Run(ctx Context) (CheckResult, error) {
 				Message:  "IndexNow configured via Composer package",
 			}, nil
 		}
+	}
+
+	// Offline source scan: the key may be served by a route that matches none
+	// of the known on-disk patterns (e.g. a Go net/http ServeMux handler).
+	if servedAt, ok := detectIndexNowInSource(ctx, key); ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "IndexNow served dynamically via " + servedAt,
+		}, nil
+	}
+
+	// HTTP verification: authoritative fallback that confirms the key file is
+	// actually reachable at /{key}.txt with the correct body. Covers dynamic
+	// serving on any stack when a staging or production URL is configured.
+	if servedAt, ok := probeIndexNowKeyOverHTTP(ctx, key); ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "IndexNow key file served at " + servedAt,
+		}, nil
 	}
 
 	if key == "" {
