@@ -61,6 +61,16 @@ func (c PostmarkCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	if where, ok := hasEnvVarReference(ctx.RootDir, "POSTMARK_"); ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Postmark configured via env reference in " + where + " (secret resolved from the deploy environment)",
+		}, nil
+	}
+
 	return CheckResult{
 		ID:       c.ID(),
 		Title:    c.Title(),
@@ -122,6 +132,16 @@ func (c SendGridCheck) Run(ctx Context) (CheckResult, error) {
 			Severity: SeverityInfo,
 			Passed:   true,
 			Message:  "SendGrid SDK initialization found",
+		}, nil
+	}
+
+	if where, ok := hasEnvVarReference(ctx.RootDir, "SENDGRID_"); ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "SendGrid configured via env reference in " + where + " (secret resolved from the deploy environment)",
 		}, nil
 	}
 
@@ -189,6 +209,16 @@ func (c MailgunCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	if where, ok := hasEnvVarReference(ctx.RootDir, "MAILGUN_"); ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Mailgun configured via env reference in " + where + " (secret resolved from the deploy environment)",
+		}, nil
+	}
+
 	return CheckResult{
 		ID:       c.ID(),
 		Title:    c.Title(),
@@ -250,6 +280,16 @@ func (c ResendCheck) Run(ctx Context) (CheckResult, error) {
 			Severity: SeverityInfo,
 			Passed:   true,
 			Message:  "Resend SDK initialization found",
+		}, nil
+	}
+
+	if where, ok := hasEnvVarReference(ctx.RootDir, "RESEND_"); ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "Resend configured via env reference in " + where + " (secret resolved from the deploy environment)",
 		}, nil
 	}
 
@@ -319,6 +359,16 @@ func (c AWSSESCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
+	if where, ok := hasEnvVarReference(ctx.RootDir, "AWS_SES_", "SES_REGION"); ok {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  "AWS SES configured via env reference in " + where + " (secret resolved from the deploy environment)",
+		}, nil
+	}
+
 	return CheckResult{
 		ID:       c.ID(),
 		Title:    c.Title(),
@@ -362,4 +412,90 @@ func envFileHasPrefix(path, prefix string) bool {
 		}
 	}
 	return false
+}
+
+// envRefConfigFiles are non-.env config and deploy manifests that commonly
+// reference a secret by env-var name (e.g. `apiKey: $AWS_SES_API_KEY`,
+// `env('MAILGUN_SECRET')`) rather than holding the value. Spans CMSs and hosts
+// so detection isn't tied to one stack.
+var envRefConfigFiles = []string{
+	"config/project/project.yaml", // Craft CMS (committed project config)
+	"wp-config.php",               // WordPress
+	"config/services.yaml", "config/packages/mailer.yaml", // Symfony
+	"render.yaml", "fly.toml", "vercel.json", "netlify.toml", "app.yaml",
+	"app.json", "Procfile", "docker-compose.yml", "docker-compose.yaml",
+}
+
+// maxEnvRefScanBytes caps the size of any single config file read while looking
+// for an env-var reference, so a walk never slurps a large committed artifact.
+const maxEnvRefScanBytes = 512 * 1024
+
+// hasEnvVarReference reports whether any of the given env-var prefixes is
+// *referenced* (not necessarily valued) in a non-.env config or deploy file —
+// e.g. Craft's project.yaml using `apiKey: $AWS_SES_API_KEY`, a Laravel config
+// calling `env('MAILGUN_SECRET')`, or a fly.toml/render.yaml declaring the var.
+// A service wired this way is correctly configured: the secret lives in the
+// deploy environment, not committed to the repo, so its absence from the local
+// .env is expected rather than a misconfiguration. Returns the relative path it
+// was found in and true. The prefixes are matched case-insensitively as
+// substrings; env-var names (AWS_SES_, MAILGUN_, …) are distinctive enough that
+// this won't collide with unrelated config text.
+func hasEnvVarReference(rootDir string, prefixes ...string) (string, bool) {
+	upper := make([]string, len(prefixes))
+	for i, p := range prefixes {
+		upper[i] = strings.ToUpper(p)
+	}
+
+	scan := func(path string) bool {
+		fi, err := os.Stat(path)
+		if err != nil || fi.IsDir() || fi.Size() > maxEnvRefScanBytes {
+			return false
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return false
+		}
+		up := strings.ToUpper(string(content))
+		for _, p := range upper {
+			if strings.Contains(up, p) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Curated config/deploy manifests first.
+	for _, rel := range envRefConfigFiles {
+		full := filepath.Join(rootDir, rel)
+		if scan(full) {
+			return rel, true
+		}
+	}
+
+	// Then a bounded walk of config/ (Laravel, Rails, Craft, Symfony) for the
+	// usual config file types.
+	found := ""
+	configDir := filepath.Join(rootDir, "config")
+	_ = filepath.Walk(configDir, func(path string, fi os.FileInfo, err error) error {
+		if err != nil || found != "" {
+			return nil
+		}
+		if fi.IsDir() {
+			if fi.Name() == "vendor" || fi.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		switch strings.ToLower(filepath.Ext(fi.Name())) {
+		case ".php", ".yaml", ".yml", ".rb", ".env", ".toml", ".json":
+			if scan(path) {
+				found = relPath(rootDir, path)
+			}
+		}
+		return nil
+	})
+	if found != "" {
+		return found, true
+	}
+	return "", false
 }
