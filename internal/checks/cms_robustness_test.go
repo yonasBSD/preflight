@@ -198,3 +198,80 @@ func TestAWSSESPassesOnEnvReference(t *testing.T) {
 		t.Fatal("AWS SES should warn when declared with no config evidence at all")
 	}
 }
+
+func TestServiceDetectedFromDependencyManifest(t *testing.T) {
+	t.Run("aws ses craft plugin in composer.json", func(t *testing.T) {
+		root := writeFiles(t, map[string]string{
+			"composer.json": `{"require":{"putyourlightson/craft-amazon-ses":"3.1.0"}}`,
+		})
+		ctx := Context{
+			RootDir: root,
+			Config: &config.PreflightConfig{
+				Stack:    "craft",
+				Services: map[string]config.ServiceConfig{"aws_ses": {Declared: true}},
+			},
+		}
+		res, _ := AWSSESCheck{}.Run(ctx)
+		if !res.Passed {
+			t.Fatalf("AWS SES should pass when the plugin is a composer dependency; got WARN %q", res.Message)
+		}
+	})
+
+	t.Run("sendgrid npm package in package.json", func(t *testing.T) {
+		root := writeFiles(t, map[string]string{
+			"package.json": `{"dependencies":{"@sendgrid/mail":"^8.0.0"}}`,
+		})
+		ctx := Context{
+			RootDir: root,
+			Config: &config.PreflightConfig{
+				Stack:    "node",
+				Services: map[string]config.ServiceConfig{"sendgrid": {Declared: true}},
+			},
+		}
+		res, _ := SendGridCheck{}.Run(ctx)
+		if !res.Passed {
+			t.Fatalf("SendGrid should pass when @sendgrid/mail is a dependency; got WARN %q", res.Message)
+		}
+	})
+}
+
+func TestStructuredDataPerEnvFromRenderedHTML(t *testing.T) {
+	const ldHTML = `<!doctype html><html><head>` +
+		`<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite"}</script>` +
+		`</head><body></body></html>`
+
+	// A template carrying a static SEOmatic reference would short-circuit the
+	// old code before the per-env check; the JSON-LD must still report per-env.
+	// head.twig is on the structured-data partials list, so static analysis can
+	// still find it offline.
+	root := writeFiles(t, map[string]string{
+		"templates/_partials/head.twig": `{{ craft.seomatic.jsonLd }}`,
+	})
+
+	t.Run("reports per-env when rendered HTML has JSON-LD", func(t *testing.T) {
+		ctx := Context{
+			RootDir: root,
+			Config: &config.PreflightConfig{
+				Stack: "craft",
+				URLs:  config.URLConfig{Production: "https://prod", Staging: "https://staging"},
+			},
+			PageHTMLProduction: ldHTML,
+			PageHTMLStaging:    ldHTML,
+		}
+		res, _ := StructuredDataCheck{}.Run(ctx)
+		if !res.Passed {
+			t.Fatalf("structured data should pass; got WARN %q", res.Message)
+		}
+		if !strings.Contains(res.Message, "prod: ✓") {
+			t.Fatalf("expected per-env breakdown, got %q", res.Message)
+		}
+	})
+
+	t.Run("falls back to static analysis offline", func(t *testing.T) {
+		ctx := Context{RootDir: root, Config: &config.PreflightConfig{Stack: "craft"}}
+		res, _ := StructuredDataCheck{}.Run(ctx)
+		if !res.Passed {
+			t.Fatalf("structured data should pass via static SEOmatic reference offline; got WARN %q", res.Message)
+		}
+	})
+}

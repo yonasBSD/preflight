@@ -20,6 +20,30 @@ func (c StructuredDataCheck) Run(ctx Context) (CheckResult, error) {
 	cfg := ctx.Config.Checks.SEOMeta
 	var details []string
 
+	// Rendered HTML is authoritative when a URL is configured: prefer it and
+	// report per-env, consistent with the other page-content checks (SEO,
+	// canonical, OG, viewport, lang). A static reference (e.g. a SEOmatic call
+	// in a template) would otherwise short-circuit before the per-env check and
+	// hide the prod/staging breakdown. Static analysis below remains the
+	// fallback for offline scans or when the homepage isn't where the JSON-LD
+	// lives.
+	summary, prodPassed := RunPerEnv(ctx, func(html string) []string {
+		if reJSONLDScript.MatchString(html) || reSchemaContext.MatchString(html) {
+			return nil
+		}
+		return []string{"structured data"}
+	})
+	if prodPassed {
+		return CheckResult{
+			ID:       c.ID(),
+			Title:    c.Title(),
+			Severity: SeverityInfo,
+			Passed:   true,
+			Message:  summary,
+			Details:  details,
+		}, nil
+	}
+
 	// Check main layout if configured
 	if cfg != nil && cfg.MainLayout != "" {
 		layoutPath := filepath.Join(ctx.RootDir, cfg.MainLayout)
@@ -77,23 +101,10 @@ func (c StructuredDataCheck) Run(ctx Context) (CheckResult, error) {
 		}, nil
 	}
 
-	// Per-env rendered HTML fallback for CMS-generated JSON-LD.
-	if summary, prodPassed := RunPerEnv(ctx, func(html string) []string {
-		if reJSONLDScript.MatchString(html) || reSchemaContext.MatchString(html) {
-			return nil
-		}
-		return []string{"structured data"}
-	}); summary != "" {
-		if prodPassed {
-			return CheckResult{
-				ID:       c.ID(),
-				Title:    c.Title(),
-				Severity: SeverityInfo,
-				Passed:   true,
-				Message:  summary,
-				Details:  details,
-			}, nil
-		}
+	// Nothing static matched. If a URL was configured, the rendered HTML was
+	// already checked above and lacked JSON-LD — warn per-env. Otherwise warn
+	// generically (offline scan).
+	if summary != "" {
 		return CheckResult{
 			ID:          c.ID(),
 			Title:       c.Title(),

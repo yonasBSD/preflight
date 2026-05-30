@@ -259,8 +259,42 @@ func (c SidekiqCheck) Run(ctx Context) (CheckResult, error) {
 }
 
 // Helper function to search for patterns in layout files
+// dependencyManifests are the package manifests scanned for an integration's
+// library name. A declared dependency (e.g. craft-amazon-ses in composer.json,
+// @sendgrid/mail in package.json) means the integration is installed even when
+// its credentials live outside the repo — a CMS control panel, a platform's
+// environment — so a service check shouldn't report it as unconfigured.
+var dependencyManifests = []string{
+	"composer.json", "package.json", "Gemfile",
+	"requirements.txt", "pyproject.toml", "Pipfile", "go.mod",
+}
+
+// scanDependencyManifests reports whether any pattern matches a package manifest
+// at rootDir, returning the manifest's name on the first hit. Matches raw
+// content (manifests are JSON/text, not commented source).
+func scanDependencyManifests(rootDir string, patterns []*regexp.Regexp) (string, bool) {
+	for _, name := range dependencyManifests {
+		content, err := os.ReadFile(filepath.Join(rootDir, name))
+		if err != nil {
+			continue
+		}
+		for _, pattern := range patterns {
+			if pattern.Match(content) {
+				return name, true
+			}
+		}
+	}
+	return "", false
+}
+
 func searchForPatterns(rootDir, stack string, patterns []*regexp.Regexp) bool {
 	layoutFiles := getLayoutFilesForStack(stack)
+
+	// A declared dependency in a package manifest counts as the integration
+	// being present, since credentials are often managed outside the repo.
+	if _, ok := scanDependencyManifests(rootDir, patterns); ok {
+		return true
+	}
 
 	for _, file := range layoutFiles {
 		path := filepath.Join(rootDir, file)
@@ -395,6 +429,12 @@ type SearchMatch struct {
 // searchForPatternsWithDetails searches for patterns and returns details about the match
 func searchForPatternsWithDetails(rootDir, stack string, patterns []*regexp.Regexp) *SearchMatch {
 	layoutFiles := getLayoutFilesForStack(stack)
+
+	// A declared dependency in a package manifest counts as the integration
+	// being present, since credentials are often managed outside the repo.
+	if name, ok := scanDependencyManifests(rootDir, patterns); ok {
+		return &SearchMatch{FilePath: name, Pattern: "dependency manifest"}
+	}
 
 	for _, file := range layoutFiles {
 		path := filepath.Join(rootDir, file)
