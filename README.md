@@ -96,6 +96,32 @@ bunx --yes skills add preflightsh/preflight --skill preflight
 npx --yes skills add preflightsh/preflight --skill preflight
 ```
 
+## Dashboard & AI Suggestions
+
+Preflight is fully usable from the command line with no account. The optional dashboard at [app.preflight.sh](https://app.preflight.sh) adds a hosted history of your scans and AI-generated fix suggestions for each finding. Your code never leaves your machine: scanning runs locally, and only a redacted summary of results (check IDs, statuses, and messages, never secret values or file contents) is sent when you publish.
+
+Create a free account, then connect the CLI:
+
+```bash
+preflight auth login    # opens your browser to authorize this CLI
+preflight auth status   # show who you're logged in as
+preflight auth logout   # remove stored credentials
+```
+
+Publish a scan to your dashboard with `--publish`. It prints a link to view the run. Publishing is best-effort: if you're offline or not logged in, the scan still runs and exits normally.
+
+```bash
+preflight scan --publish
+```
+
+On the dashboard you get each run's pass/warn/fail breakdown, the full list of findings, and a per-project history so you can see what changed between deploys.
+
+Open any failed or warning check on a published run to generate a step-by-step fix tailored to your detected stack, with copy-ready commands and code.
+
+- **Free** includes 5 published runs per month.
+- **Bring your own key:** add an OpenAI or Anthropic API key in your dashboard settings and publishing stays free and unlimited (you pay your provider directly).
+- **Managed ($5/mo):** we cover the AI costs and runs are unlimited, no API key required.
+
 ## What It Checks
 
 | Check | Description |
