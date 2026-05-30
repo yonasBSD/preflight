@@ -71,7 +71,9 @@ func (c SecurityHeadersCheck) Run(ctx Context) (CheckResult, error) {
 			Title:    c.Title(),
 			Severity: SeverityInfo,
 			Passed:   true,
-			Message:  strings.Join(results, ", "),
+			// Stack per-env results one per line, matching how every other
+			// per-env check (SEO, OG, viewport, lang) renders its breakdown.
+			Message: strings.Join(results, "\n                    └─ "),
 		}, nil
 	}
 
