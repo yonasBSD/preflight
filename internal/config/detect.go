@@ -993,6 +993,12 @@ func detectAnalyticsScripts(rootDir string, services map[string]bool) {
 		"public":       true, // Common public web root
 		"wp-admin":     true, // WordPress core
 		"wp-includes":  true, // WordPress core
+		// Agent tooling vendors example skills/scripts that reference services
+		// the project doesn't actually use (e.g. the mcp-builder skill ships an
+		// evaluation.py with "from anthropic import Anthropic"). Skip them like
+		// other bundled third-party code to avoid false positives.
+		".agents": true, // vendored agent skills (Claude Code, Cursor, etc.)
+		".claude": true, // Claude Code project config and skills
 	}
 
 	// Collect external script URLs to fetch
