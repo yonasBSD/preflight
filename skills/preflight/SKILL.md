@@ -52,6 +52,18 @@ Use Preflight to scan a project for launch readiness issues before deploy. Treat
    - Call out any remaining warnings, skipped checks, network-dependent checks, or config assumptions.
    - Do not claim launch readiness when required checks are disabled, unconfigured, or unverifiable.
 
+7. Check previous scans when history would inform the work (optional).
+   - If the user asks what changed since last time, whether a finding is new or a regression, or wants to compare against a prior deploy, pull published history from the dashboard instead of guessing.
+   - Requires that the user has logged in (`preflight auth login`) and previously published runs (`preflight scan --publish`). If neither is true, say so and continue with the local scan.
+   - Prefer JSON for analysis and scope to the current project:
+
+     ```bash
+     preflight history --here --format json
+     preflight history <run-id> --format json
+     ```
+
+   - Use the prior run's check results as the baseline: a check that passed before and fails now is a regression worth surfacing first; a newly passing check confirms a fix landed.
+
 ## Common Commands
 
 Use these commands as the default command vocabulary:
@@ -64,7 +76,12 @@ preflight scan --ci --format human --verbose
 preflight ignore <check-or-service-id>
 preflight unignore <check-or-service-id>
 preflight checks
+preflight history --here --format json
+preflight history <run-id> --format json
 ```
+
+The `history` commands read previously published runs from the dashboard and
+require authentication; treat them as optional context, not part of every scan.
 
 ## CI Pattern
 

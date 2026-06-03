@@ -14,8 +14,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -233,6 +235,96 @@ func (c *Client) PublishRun(token string, req *PublishRequest) (*PublishResponse
 	default:
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return nil, fmt.Errorf("publish failed: %s: %s", resp.Status, string(b))
+	}
+}
+
+// RunSummary is one row of scan history from GET /api/runs.
+type RunSummary struct {
+	ID          string `json:"id"`
+	ProjectID   string `json:"project_id"`
+	ProjectName string `json:"project_name"`
+	ProjectKey  string `json:"project_key"`
+	OK          int    `json:"ok"`
+	Warn        int    `json:"warn"`
+	Fail        int    `json:"fail"`
+	CreatedAt   int64  `json:"created_at"`
+	URL         string `json:"url"`
+}
+
+// RunDetail is a single run with its check results from GET /api/runs/{id}.
+type RunDetail struct {
+	ID          string         `json:"id"`
+	ProjectName string         `json:"project_name"`
+	Stack       string         `json:"stack"`
+	OK          int            `json:"ok"`
+	Warn        int            `json:"warn"`
+	Fail        int            `json:"fail"`
+	CreatedAt   int64          `json:"created_at"`
+	Checks      []PublishCheck `json:"checks"`
+}
+
+// ListRuns fetches recent runs for the authenticated account. projectKey ""
+// lists across all projects; limit <= 0 uses the server default.
+func (c *Client) ListRuns(token, projectKey string, limit int) ([]RunSummary, error) {
+	u, err := url.Parse(c.BaseURL + "/api/runs")
+	if err != nil {
+		return nil, err
+	}
+	q := u.Query()
+	if projectKey != "" {
+		q.Set("project_key", projectKey)
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	u.RawQuery = q.Encode()
+
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("not authenticated; run 'preflight auth login'")
+	}
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("history failed: %s: %s", resp.Status, string(b))
+	}
+	var out struct {
+		Runs []RunSummary `json:"runs"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return out.Runs, nil
+}
+
+// GetRun fetches a single run with its check results.
+func (c *Client) GetRun(token, runID string) (*RunDetail, error) {
+	req, _ := http.NewRequest(http.MethodGet, c.BaseURL+"/api/runs/"+url.PathEscape(runID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var out RunDetail
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			return nil, err
+		}
+		return &out, nil
+	case http.StatusUnauthorized:
+		return nil, fmt.Errorf("not authenticated; run 'preflight auth login'")
+	case http.StatusNotFound:
+		return nil, fmt.Errorf("run %q not found", runID)
+	default:
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("get run failed: %s: %s", resp.Status, string(b))
 	}
 }
 
