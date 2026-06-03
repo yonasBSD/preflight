@@ -86,7 +86,7 @@ func listHistory(client *dashboard.Client, token string) error {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%d\t%d\n",
 			r.ID, truncate(r.ProjectName, 28), relTime(r.CreatedAt), r.OK, r.Warn, r.Fail)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 	fmt.Printf("\nView a run:  preflight history <run-id>\n")
 	return nil
 }
