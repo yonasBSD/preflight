@@ -116,6 +116,17 @@ preflight scan --publish
 
 On the dashboard you get each run's pass/warn/fail breakdown, the full list of findings, and a per-project history so you can see what changed between deploys.
 
+You can also read that history from the terminal with `preflight history`:
+
+```bash
+preflight history                       # recent runs across your projects
+preflight history --here                # only the current project's runs
+preflight history <run-id>              # one run's full check results
+preflight history --here --format json  # machine-readable, for agents
+```
+
+Requires `preflight auth login`. `--here` matches runs to the current repository by its git remote, the same key used when publishing.
+
 Open any failed or warning check on a published run to generate a step-by-step fix tailored to your detected stack, with copy-ready commands and code.
 
 - **Free** includes 5 published runs per month.
