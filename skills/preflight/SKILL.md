@@ -1,7 +1,7 @@
 ---
 name: preflight
 description: This skill should be used when the user asks to "run Preflight", "scan launch readiness", "check production readiness", "audit before deploy", "fix preflight findings", "set up preflight.yml", "wire Preflight into CI", or mentions the Preflight.sh CLI.
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Preflight Launch Readiness
