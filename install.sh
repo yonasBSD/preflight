@@ -133,7 +133,7 @@ install() {
     if [ "$OS" = "windows" ]; then
         unzip -q "${FILENAME}"
     else
-        tar -xzf "${FILENAME}" --strip-components=1
+        tar -xzf "${FILENAME}"
     fi
 
     # Install
